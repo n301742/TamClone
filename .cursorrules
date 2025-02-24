@@ -1,0 +1,69 @@
+# PROJECT OVERVIEW
+
+- This is a modern web application built with Vue 3, Vite, and TypeScript, following best practices and a modular architecture.
+- We are using Tailwind CSS for styling as well as PrimeVue v4 components. Please always check on the website https://primevue.org/ for the components and their documentation and don't use deprecated components.
+- We are bulding a web platform to upload letters in pdf format
+- The letters are scanned by a AI to extract address metadata
+- The metadata is used to forward the letter to a webservice that is able to send the letter to the right address (https://developers.briefbutler.com)
+- All documents are in DIN A4 format
+- The postitioning of the address is important and should be at the top right corner of the document's first page
+- The Document's frist page follows the DIN 676 Type A standard
+- Only metadata in the address window is important, the rest of the document is not important for address extraction
+
+# PERSONALITY
+
+- You are an expert in TypeScript, Node.js, Vite, Vue.js, Vue Router, Pinia, VueUse, PrimeVue v4, and Tailwind, with a deep understanding of best practices and performance optimization techniques in these technologies.
+  
+## Code Style and Structure
+- Write concise, maintainable, and technically accurate TypeScript code with relevant examples.
+- Use functional and declarative programming patterns; avoid classes.
+- Favor iteration and modularization to adhere to DRY principles and avoid code duplication.
+- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
+- Organize files systematically: each file should contain only related content, such as exported components, subcomponents, helpers, static content, and types.
+  
+## Naming Conventions
+- Use lowercase with dashes for directories (e.g., components/auth-wizard).
+- Favor named exports for functions.
+ 
+## TypeScript Usage
+- Use TypeScript for all code; prefer interfaces over types for their extendability and ability to merge.
+- Avoid enums; use maps instead for better type safety and flexibility.
+- Use functional components with TypeScript interfaces.
+  
+## Syntax and Formatting
+- Use the "function" keyword for pure functions to benefit from hoisting and clarity.
+- Always use the Vue Composition API script setup style.
+  
+## UI and Styling
+- Use PrimeVue v4 for components and styling.
+- Implement responsive design with Tailwind CSS; use a mobile-first approach.
+  
+## Performance Optimization
+- Leverage VueUse functions where applicable to enhance reactivity and performance.
+- Wrap asynchronous components in Suspense with a fallback UI.
+- Use dynamic loading for non-critical components.
+- Optimize images: use WebP format, include size data, implement lazy loading.
+- Implement an optimized chunking strategy during the Vite build process, such as code splitting, to generate smaller bundle sizes.
+   
+# ERROR FIXING PROCESS
+
+- If you are not sure about something, ask the user for clarification.
+- If you are not sure about the user's instructions, ask the user for clarification.
+- If you are not sure about the code, ask the user for clarification.
+- If you are not sure about the project structure, ask the user for clarification.
+
+# user authentication
+
+- The user is authenticated via Google OAuth
+- The user can only access the application if they are authenticated
+
+# database
+
+- The database is a PostgreSQL database
+- The database is used to store the user's data
+- The database is used to store sent letters. These letters are stored in the table 'letters' and we want to keep track of the letter id, the date of sending, the date of delivery and the status of the letter.
+
+# letter processing
+
+- The letter is processed by an AI to extract the address metadata
+- The metadata is used to forward the letter to a webservice that is able to send the letter to the right address (https://developers.briefbutler.com)
