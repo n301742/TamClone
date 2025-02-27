@@ -1,0 +1,129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+model User {
+  id                   String       @id @default(uuid())
+  email                String       @unique
+  firstName            String
+  lastName             String
+  mobileNumber         String?
+  passwordHash         String?
+  authProvider         AuthProvider @default(LOCAL)
+  authProviderId       String?
+  profilePicture       String?
+  role                 UserRole     @default(USER)
+  documentRetentionDays Int          @default(30)
+  darkMode             Boolean      @default(false)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  letters              Letter[]
+  billingInfo          BillingInfo?
+  addressBook          AddressBook[]
+}
+
+model BillingInfo {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethod String?
+  billingAddress String?
+  billingCity    String?
+  billingState   String?
+  billingZip     String?
+  billingCountry String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum LetterStatus {
+  PROCESSING
+  SENT
+  DELIVERED
+  FAILED
+  NOT_FETCHED
+}
+
+model Letter {
+  id                  String       @id @default(uuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackingId          String?      @unique
+  deliveryId          String?
+  profileId           String?
+  status              LetterStatus @default(PROCESSING)
+  statusHistory       StatusHistory[]
+  
+  // File information
+  pdfPath             String?      // Renamed from filePath
+  fileName            String?
+  fileSize            Int?
+  
+  // Recipient information
+  recipientName       String?
+  recipientAddress    String?
+  recipientCity       String?
+  recipientState      String?
+  recipientZip        String?
+  recipientCountry    String?
+  
+  // Letter options
+  description         String?
+  isExpress           Boolean      @default(false)
+  isRegistered        Boolean      @default(false)
+  isColorPrint        Boolean      @default(false)
+  isDuplexPrint       Boolean      @default(true)
+  
+  // Timestamps
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  
+  // Additional information
+  returnReceiptPath   String?
+  deleteAfter         DateTime?
+}
+
+model StatusHistory {
+  id        String       @id @default(uuid())
+  letterId  String
+  letter    Letter       @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  status    LetterStatus
+  message   String?
+  timestamp DateTime     @default(now())
+}
+
+// Address book model for saving recipient information
+model AddressBook {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  address         String
+  city            String
+  state           String
+  postalCode      String
+  country         String
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+} 
