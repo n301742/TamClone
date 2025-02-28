@@ -1,7 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { createWorker } from 'tesseract.js';
-import pdfParse from 'pdf-parse';
 import { PDFExtract } from 'pdf.js-extract';
 
 // Create a logs directory if it doesn't exist
@@ -23,24 +21,66 @@ function writeLog(message: string) {
   fs.appendFileSync(logFile, logMessage);
 }
 
-// DIN 676 Type A standard dimensions (in mm, converted to points for PDF processing)
-// 1 mm = 2.83465 points
+// 1 mm = 2.83465 points (PDF points)
+const MM_TO_POINTS = 2.83465;
+
+// Define form types enum
+export enum AddressFormType {
+  FORM_A = 'formA',
+  FORM_B = 'formB',
+  DIN_676 = 'din676'
+}
+
+// DIN 5008 standard dimensions (in mm, converted to points for PDF processing)
+const DIN_5008 = {
+  // Address field dimensions and positions
+  addressField: {
+    // Form A (hochgestelltes Anschriftfeld)
+    formA: {
+      // Position from top edge
+      top: 27 * MM_TO_POINTS, // 27mm from top
+      // Height of the address field
+      height: 40 * MM_TO_POINTS, // 40mm high
+    },
+    // Form B (tiefgestelltes Anschriftfeld)
+    formB: {
+      // Position from top edge
+      top: 45 * MM_TO_POINTS, // 45mm from top
+      // Height of the address field
+      height: 40 * MM_TO_POINTS, // 40mm high
+    },
+    // Common dimensions for both forms
+    // Position from left edge (based on left margin)
+    left: 20 * MM_TO_POINTS, // 20mm from left
+    // Width of the address field
+    width: 85 * MM_TO_POINTS, // 85mm wide
+    // Maximum number of lines
+    maxLines: 8 // Increased to accommodate more lines
+  },
+  // A4 page dimensions
+  page: {
+    width: 210 * MM_TO_POINTS, // 210mm wide
+    height: 297 * MM_TO_POINTS, // 297mm high
+  }
+};
+
+// Keep the old DIN 676 Type A standard for backward compatibility
 const DIN_676_TYPE_A = {
   // Address window position (from top-left corner of the page)
   addressWindow: {
     // Position from left edge
-    left: 20 * 2.83465, // 20mm from left
+    left: 20 * MM_TO_POINTS, // 20mm from left
     // Position from top edge
-    top: 40 * 2.83465, // 40mm from top
+    top: 40 * MM_TO_POINTS, // 40mm from top
     // Width of the address window
-    width: 90 * 2.83465, // 90mm wide
+    width: 85 * MM_TO_POINTS, // 85mm wide
     // Height of the address window
-    height: 45 * 2.83465, // 45mm high
+    height: 40 * MM_TO_POINTS, // 40mm high
   },
   // A4 page dimensions
   page: {
-    width: 210 * 2.83465, // 210mm wide
-    height: 297 * 2.83465, // 297mm high
+    width: 210 * MM_TO_POINTS, // 210mm wide
+    height: 297 * MM_TO_POINTS, // 297mm high
   }
 };
 
@@ -63,13 +103,17 @@ export interface ExtractedAddress {
  */
 export class PdfProcessingService {
   /**
-   * Extract address from a PDF file using OCR
+   * Extract address from a PDF file using targeted extraction
    * @param filePath Path to the PDF file
+   * @param formType Optional parameter to specify which form type to use (default: Form B)
    * @returns Promise with extracted address data
    */
-  public async extractAddressFromPdf(filePath: string): Promise<ExtractedAddress> {
+  public async extractAddressFromPdf(
+    filePath: string, 
+    formType: AddressFormType = AddressFormType.FORM_B
+  ): Promise<ExtractedAddress> {
     try {
-      writeLog(`[PDF Processing] Starting address extraction for: ${filePath}`);
+      writeLog(`[PDF Processing] Starting address extraction for: ${filePath} using form type: ${formType}`);
       
       // Check if file exists
       if (!fs.existsSync(filePath)) {
@@ -77,590 +121,374 @@ export class PdfProcessingService {
         throw new Error('PDF file not found');
       }
 
-      writeLog('[PDF Processing] File exists, attempting direct text extraction');
+      // Use targeted extraction with the specified form type
+      writeLog(`[PDF Processing] Using targeted extraction approach with form type: ${formType}`);
+      return await this.performOcrOnAddressWindow(filePath, formType);
       
-      // First try to extract text directly from PDF
-      const extractedText = await this.extractTextFromPdf(filePath);
-      
-      // If we got text, try to parse it
-      if (extractedText && extractedText.trim().length > 0) {
-        writeLog(`[PDF Processing] Text extracted directly from PDF: ${extractedText.substring(0, 200)}...`);
-        
-        const parsedAddress = this.parseAddressFromText(extractedText);
-        writeLog(`[PDF Processing] Parsed address from text: ${JSON.stringify(parsedAddress)}`);
-        
-        if (this.isValidAddress(parsedAddress)) {
-          writeLog('[PDF Processing] Valid address found via direct extraction');
-          return {
-            ...parsedAddress,
-            rawText: extractedText,
-            confidence: 0.8 // Direct extraction usually has good confidence
-          };
-        } else {
-          writeLog('[PDF Processing] Invalid address from direct extraction, falling back to OCR');
-        }
-      } else {
-        writeLog('[PDF Processing] No text extracted directly from PDF, falling back to OCR');
-      }
-
-      // If direct extraction failed or didn't yield valid results, try OCR
-      return await this.performOcrOnAddressWindow(filePath);
     } catch (error) {
-      writeLog(`[PDF Processing] Error extracting address from PDF: ${error}`);
-      throw new Error(`Failed to extract address: ${(error as Error).message}`);
+      writeLog(`[PDF Processing] Error extracting address from PDF: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to extract address: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * Extract text directly from PDF
+   * Perform OCR on the address window area of a PDF
+   * This method focuses specifically on the address window area according to the specified form type
    * @param filePath Path to the PDF file
-   * @returns Promise with extracted text
-   */
-  private async extractTextFromPdf(filePath: string): Promise<string> {
-    try {
-      writeLog('[PDF Processing] Reading PDF file for text extraction');
-      
-      // Read the PDF file
-      const dataBuffer = fs.readFileSync(filePath);
-      
-      writeLog('[PDF Processing] PDF file read, parsing content');
-      
-      // Parse the PDF
-      const data = await pdfParse(dataBuffer);
-      
-      writeLog(`[PDF Processing] PDF parsed, text length: ${data.text.length}`);
-      
-      // Return the text content
-      return data.text;
-    } catch (error) {
-      writeLog(`[PDF Processing] Error extracting text from PDF: ${error}`);
-      return ''; // Return empty string on error
-    }
-  }
-
-  /**
-   * Perform OCR on the address window area of the first page
-   * @param filePath Path to the PDF file
+   * @param formType The form type to use for extraction (default: Form B)
    * @returns Promise with extracted address data
    */
-  private async performOcrOnAddressWindow(filePath: string): Promise<ExtractedAddress> {
+  private async performOcrOnAddressWindow(
+    filePath: string, 
+    formType: AddressFormType = AddressFormType.FORM_B
+  ): Promise<ExtractedAddress> {
     try {
-      writeLog('[PDF Processing] Starting OCR fallback process');
+      writeLog(`[PDF Processing] Performing targeted extraction on address window for: ${filePath} using form type: ${formType}`);
       
-      // Extract the first page as an image
+      // Read the PDF file
+      const pdfBuffer = fs.readFileSync(filePath);
+      
+      // Use pdf.js-extract to get the text content
       const pdfExtract = new PDFExtract();
-      const options = {}; // Default options
+      const data = await pdfExtract.extractBuffer(pdfBuffer);
       
-      writeLog('[PDF Processing] Extracting PDF structure');
-      
-      const data = await pdfExtract.extract(filePath, options);
-      if (!data.pages || data.pages.length === 0) {
+      if (!data || !data.pages || data.pages.length === 0) {
         writeLog('[PDF Processing] No pages found in PDF');
         throw new Error('No pages found in PDF');
       }
       
-      writeLog(`[PDF Processing] PDF structure extracted, pages found: ${data.pages.length}`);
-      
       // Get the first page
       const firstPage = data.pages[0];
-      writeLog(`[PDF Processing] First page dimensions: ${(firstPage as any).width || 'unknown'} x ${(firstPage as any).height || 'unknown'}`);
+      // Type assertion for width and height properties
+      const pageWidth = (firstPage as any).width || 595; // Default A4 width in points
+      const pageHeight = (firstPage as any).height || 842; // Default A4 height in points
       
-      // Create a temporary directory for processing if it doesn't exist
-      const tempDir = path.join(__dirname, '../../temp');
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-        writeLog(`[PDF Processing] Created temp directory: ${tempDir}`);
-      }
+      writeLog(`[PDF Processing] PDF page dimensions: ${pageWidth}x${pageHeight} points`);
       
-      // Create a temporary image file path
-      const tempImagePath = path.join(tempDir, `${path.basename(filePath, '.pdf')}_address.png`);
-      writeLog(`[PDF Processing] Temp image path: ${tempImagePath}`);
+      // Define the address window coordinates based on the form type
+      let addressWindow;
+      let formDescription;
       
-      // FIXME: The PDF to image conversion is not implemented yet
-      // For now, we'll try to extract text directly from the PDF again
-      // and use that for OCR if possible
-      
-      writeLog('[PDF Processing] PDF to image conversion not implemented, trying direct extraction again');
-      
-      // Read the PDF file
-      const dataBuffer = fs.readFileSync(filePath);
-      
-      // Parse the PDF to get text
-      const pdfData = await pdfParse(dataBuffer);
-      
-      writeLog(`[PDF Processing] Second text extraction attempt, text length: ${pdfData.text.length}`);
-      
-      // If we have text, use that instead of OCR
-      if (pdfData.text && pdfData.text.trim().length > 0) {
-        writeLog(`[PDF Processing] Text found in second attempt: ${pdfData.text.substring(0, 200)}...`);
-        
-        const parsedAddress = this.parseAddressFromText(pdfData.text);
-        writeLog(`[PDF Processing] Parsed address from second attempt: ${JSON.stringify(parsedAddress)}`);
-        
-        // Lower the validation requirements for the fallback method
-        if (parsedAddress.name || parsedAddress.street || parsedAddress.city) {
-          writeLog('[PDF Processing] Partial address found in second attempt, using it with lower confidence');
-          return {
-            ...parsedAddress,
-            rawText: pdfData.text,
-            confidence: 0.6 // Lower confidence for fallback method
+      switch (formType) {
+        case AddressFormType.FORM_A:
+          addressWindow = {
+            left: DIN_5008.addressField.left,
+            top: DIN_5008.addressField.formA.top,
+            width: DIN_5008.addressField.width,
+            height: DIN_5008.addressField.formA.height
           };
-        }
-        
-        writeLog('[PDF Processing] No valid address found in second attempt');
+          formDescription = "DIN 5008 Form A";
+          break;
+        case AddressFormType.DIN_676:
+          addressWindow = {
+            left: DIN_676_TYPE_A.addressWindow.left,
+            top: DIN_676_TYPE_A.addressWindow.top,
+            width: DIN_676_TYPE_A.addressWindow.width,
+            height: DIN_676_TYPE_A.addressWindow.height
+          };
+          formDescription = "DIN 676 Type A";
+          break;
+        case AddressFormType.FORM_B:
+        default:
+          addressWindow = {
+            left: DIN_5008.addressField.left,
+            top: DIN_5008.addressField.formB.top,
+            width: DIN_5008.addressField.width,
+            height: DIN_5008.addressField.formB.height
+          };
+          formDescription = "DIN 5008 Form B";
+          break;
       }
       
-      // If we couldn't extract text directly, log an error
-      writeLog('[PDF Processing] OCR fallback not fully implemented - PDF to image conversion missing');
+      // Extract text content from the first page
+      const contentItems = firstPage.content || [];
       
-      // Return empty result with low confidence
-      return {
-        rawText: '',
-        confidence: 0
-      };
+      // Extract text from the specified address window
+      writeLog(`[PDF Processing] Extracting text from ${formDescription} address window`);
+      writeLog(`[PDF Processing] Window: left=${addressWindow.left}pt (${addressWindow.left/MM_TO_POINTS}mm), top=${addressWindow.top}pt (${addressWindow.top/MM_TO_POINTS}mm), width=${addressWindow.width}pt (${addressWindow.width/MM_TO_POINTS}mm), height=${addressWindow.height}pt (${addressWindow.height/MM_TO_POINTS}mm)`);
       
-      // NOTE: The following code would be used if we had PDF to image conversion
-      /*
-      // Initialize Tesseract worker
-      const worker = await createWorker();
+      // Filter content items that fall within the address window
+      const windowItems = this.extractTextFromArea(
+        contentItems,
+        addressWindow.top,
+        addressWindow.left,
+        addressWindow.width,
+        addressWindow.height
+      );
       
-      // Set language to English and initialize
-      await (worker as any).loadLanguage('eng');
-      await (worker as any).initialize('eng');
+      // Group items by lines and sort them
+      const windowLines = this.groupTextByLines(windowItems);
       
-      // Perform OCR on the image
-      const { data: { text, confidence } } = await worker.recognize(tempImagePath);
+      // Convert lines to text
+      const windowText = windowLines
+        .map(line => line.map(item => item.str).join(' '))
+        .join('\n');
       
-      // Terminate the worker
-      await worker.terminate();
+      writeLog(`[PDF Processing] ${formDescription} address window text:\n${windowText}`);
       
-      // Clean up temporary files
-      if (fs.existsSync(tempImagePath)) {
-        fs.unlinkSync(tempImagePath);
+      // Parse the address from the window text
+      const addressData = this.parseAddressFromText(windowText);
+      
+      // If we got a valid address, return it
+      if (this.isValidAddress(addressData)) {
+        writeLog(`[PDF Processing] Valid address found in ${formDescription} window`);
+        return { 
+          ...addressData, 
+          confidence: 0.9,
+          rawText: windowText
+        };
       }
       
-      // Parse the extracted text into address components
-      const parsedAddress = this.parseAddressFromText(text);
-      
-      return {
-        ...parsedAddress,
-        rawText: text,
-        confidence: confidence / 100 // Convert to 0-1 scale
+      // If no valid address found, return an empty address with low confidence
+      writeLog(`[PDF Processing] No valid address found in ${formDescription} window`);
+      return { 
+        confidence: 0.1,
+        rawText: windowText || "No valid address found"
       };
-      */
-    } catch (error) {
-      writeLog(`[PDF Processing] Error performing OCR on address window: ${error}`);
-      return {
-        rawText: '',
-        confidence: 0
-      };
+    } catch (error: unknown) {
+      writeLog(`[PDF Processing] Error in performOcrOnAddressWindow: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Error performing OCR on address window:', error);
+      throw error;
     }
+  }
+  
+  /**
+   * Extract text content that falls within a specific area of the PDF
+   * @param content Array of text content items with position information
+   * @param top Top position of the area in points
+   * @param left Left position of the area in points
+   * @param width Width of the area in points
+   * @param height Height of the area in points
+   * @returns Array of text content items that fall within the area
+   */
+  private extractTextFromArea(
+    content: any[],
+    top: number,
+    left: number,
+    width: number,
+    height: number
+  ): any[] {
+    // Define the boundaries of the area
+    const right = left + width;
+    const bottom = top + height;
+    
+    writeLog(`[PDF Processing] Extracting text from area: left=${left}pt (${left/MM_TO_POINTS}mm), top=${top}pt (${top/MM_TO_POINTS}mm), right=${right}pt (${right/MM_TO_POINTS}mm), bottom=${bottom}pt (${bottom/MM_TO_POINTS}mm)`);
+    
+    // Filter content that falls within the area
+    const areaContent = content.filter(item => {
+      // Check if the item has position information
+      if (!item.x || !item.y) {
+        return false;
+      }
+      
+      // Get the item's position and dimensions
+      const itemLeft = item.x;
+      const itemTop = item.y;
+      const itemRight = itemLeft + (item.width || 0);
+      const itemBottom = itemTop + (item.height || 0);
+      
+      // Check if the item overlaps with the area
+      const overlaps = (
+        itemLeft < right &&
+        itemRight > left &&
+        itemTop < bottom &&
+        itemBottom > top
+      );
+      
+      // If the item overlaps with the area, log it for debugging
+      if (overlaps) {
+        writeLog(`[PDF Processing] Found text in area: "${item.str}" at (${itemLeft}, ${itemTop})`);
+      }
+      
+      return overlaps;
+    });
+    
+    writeLog(`[PDF Processing] Found ${areaContent.length} text items in area`);
+    
+    return areaContent;
+  }
+  
+  /**
+   * Group text content items by lines based on their y-positions
+   * @param content Array of text content items with position information
+   * @returns Array of arrays, where each inner array represents a line of text
+   */
+  private groupTextByLines(content: any[]): any[][] {
+    if (content.length === 0) {
+      return [];
+    }
+    
+    // Sort content by y-position (top to bottom)
+    const sortedContent = [...content].sort((a, b) => a.y - b.y);
+    
+    // Group items by lines (similar y-positions)
+    const lines: any[][] = [];
+    let currentLine: any[] = [sortedContent[0]];
+    let currentY = sortedContent[0].y;
+    
+    for (let i = 1; i < sortedContent.length; i++) {
+      const item = sortedContent[i];
+      
+      // If the item's y-position is close to the current line's y-position,
+      // add it to the current line; otherwise, start a new line
+      if (Math.abs(item.y - currentY) < 5) { // 5 points tolerance
+        currentLine.push(item);
+      } else {
+        // Sort the current line by x-position (left to right)
+        currentLine.sort((a, b) => a.x - b.x);
+        lines.push(currentLine);
+        
+        // Start a new line
+        currentLine = [item];
+        currentY = item.y;
+      }
+    }
+    
+    // Add the last line
+    if (currentLine.length > 0) {
+      // Sort the current line by x-position (left to right)
+      currentLine.sort((a, b) => a.x - b.x);
+      lines.push(currentLine);
+    }
+    
+    return lines;
   }
 
   /**
-   * Parse address components from raw text
-   * @param text Raw text from OCR or PDF extraction
-   * @returns Parsed address components
+   * Parse address from text according to DIN 5008 standards
+   * This method identifies recipient address components from the given text,
+   * accounting for potential sender information at the top
+   * 
+   * @param text The text to parse
+   * @returns Partial<ExtractedAddress> The extracted address data
    */
   private parseAddressFromText(text: string): Partial<ExtractedAddress> {
     writeLog(`[PDF Processing] Parsing address from text, length: ${text.length}`);
+    writeLog(`[PDF Processing] RAW TEXT TO PARSE: "${text}"`);
     
     // Split the text into lines
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     writeLog(`[PDF Processing] Text split into ${lines.length} non-empty lines`);
     
-    if (lines.length < 2) {
+    // Log each line for debugging
+    lines.forEach((line, index) => {
+      writeLog(`[PDF Processing] Parse Line ${index}: "${line}"`);
+    });
+    
+    if (lines.length < 3) {
       writeLog('[PDF Processing] Not enough lines for a valid address');
       return {}; // Not enough lines for a valid address
     }
     
-    // For DIN 676 business letters, we need to understand the structure:
-    // 1. Sender info is typically at the top left
-    // 2. Recipient address is in the address window (top right)
-    // 3. Date and reference info follows the addresses
-    // 4. The actual letter content comes after that
-    
     const result: Partial<ExtractedAddress> = {};
     
-    // First, let's identify the different sections of the letter
+    // In German DIN 5008 format, the address window typically contains:
+    // Line 0: Sender information (e.g., "Stadt Paderborn - Marienplatz 11a - 33098 Paderborn")
+    // Line 1: Salutation (e.g., "Frau" or "Herr")
+    // Line 2: Recipient name
+    // Line 3: Street and house number
+    // Line 4: Postal code and city
+    // Line 5: Optional country (for international mail)
     
-    // Find the date line - this helps separate address sections from letter content
-    let dateLineIndex = -1;
-    for (let i = 0; i < lines.length; i++) {
-      // Look for date patterns
-      if (/\b\d{1,2}\.\s*\w+\s*\d{4}\b/.test(lines[i]) || // DD. Month YYYY
-          /\b\w+,\s*\d{1,2}\.\s*\w+/.test(lines[i])) {    // City, DD. Month
-        dateLineIndex = i;
-        writeLog(`[PDF Processing] Found date line at index ${i}: "${lines[i]}"`);
-        break;
-      }
+    // Identify the sender information (first line)
+    if (lines.length > 0) {
+      writeLog(`[PDF Processing] Identified sender info: "${lines[0]}"`);
     }
     
-    // Find the subject line - typically after the date
-    let subjectLineIndex = -1;
-    if (dateLineIndex !== -1) {
-      for (let i = dateLineIndex + 1; i < Math.min(dateLineIndex + 5, lines.length); i++) {
-        if (/\b(Betreff|Betrifft|Subject|Re:|AW:|Antwort:)\b/i.test(lines[i])) {
-          subjectLineIndex = i;
-          writeLog(`[PDF Processing] Found subject line at index ${i}: "${lines[i]}"`);
-          break;
-        }
-      }
+    // Identify salutation (second line)
+    const isSalutation = (line: string): boolean => {
+      return /^(Herr|Frau|Herrn|Familie|Firma|Dr\.|Prof\.|Dipl\.)\b/i.test(line);
+    };
+    
+    let salutationLine = -1;
+    if (lines.length > 1 && isSalutation(lines[1])) {
+      salutationLine = 1;
+      writeLog(`[PDF Processing] Identified salutation: "${lines[1]}"`);
     }
     
-    // Find the salutation line - typically after the subject
-    let salutationLineIndex = -1;
-    const startSearchIndex = subjectLineIndex !== -1 ? subjectLineIndex + 1 : (dateLineIndex !== -1 ? dateLineIndex + 1 : 0);
-    for (let i = startSearchIndex; i < Math.min(startSearchIndex + 5, lines.length); i++) {
-      if (/\b(Sehr geehrte|Liebe|Hallo|Guten Tag|Grüß Gott)\b/i.test(lines[i])) {
-        salutationLineIndex = i;
-        writeLog(`[PDF Processing] Found salutation line at index ${i}: "${lines[i]}"`);
-        break;
-      }
+    // Extract recipient name (line after salutation or third line)
+    const nameLineIndex = salutationLine !== -1 ? salutationLine + 1 : 2;
+    if (nameLineIndex < lines.length) {
+      result.name = lines[nameLineIndex];
+      writeLog(`[PDF Processing] Setting name to: "${result.name}"`);
     }
     
-    // Find the signature area - typically at the end of the letter
-    let signatureStartIndex = -1;
-    for (let i = lines.length - 1; i >= Math.max(0, lines.length - 10); i--) {
-      if (/\b(Mit freundlichen Grüßen|Viele Grüße|Beste Grüße|Hochachtungsvoll|MfG|Freundliche Grüße)\b/i.test(lines[i])) {
-        signatureStartIndex = i;
-        writeLog(`[PDF Processing] Found signature start at index ${i}: "${lines[i]}"`);
-        break;
-      }
+    // Extract street (line after name)
+    const streetLineIndex = nameLineIndex + 1;
+    if (streetLineIndex < lines.length) {
+      result.street = lines[streetLineIndex];
+      writeLog(`[PDF Processing] Setting street to: "${result.street}"`);
     }
     
-    // Now, let's identify the recipient address block
-    // In DIN 676, the recipient address is typically in the first few lines,
-    // before the date line and after any sender information
-    
-    // First, look for postal codes to help identify address lines
-    const postalCodeIndices: number[] = [];
-    for (let i = 0; i < (dateLineIndex !== -1 ? dateLineIndex : lines.length); i++) {
-      // Look for German (5 digits) or Austrian (4 digits) postal codes
-      if (/\b\d{4,5}\b/.test(lines[i])) {
-        postalCodeIndices.push(i);
-        writeLog(`[PDF Processing] Found postal code at line ${i}: "${lines[i]}"`);
-      }
+    // Extract postal code and city (line after street)
+    const postalCityLineIndex = streetLineIndex + 1;
+    if (postalCityLineIndex < lines.length) {
+      const postalCityLine = lines[postalCityLineIndex];
+      this.extractPostalCodeAndCity(postalCityLine, result);
     }
     
-    // If we found multiple postal codes before the date line,
-    // the first one is likely part of the sender info, and a later one is the recipient
-    let recipientPostalCodeIndex = -1;
-    
-    if (postalCodeIndices.length > 1) {
-      // Use the second postal code as it's likely the recipient's
-      recipientPostalCodeIndex = postalCodeIndices[1];
-      writeLog(`[PDF Processing] Using second postal code for recipient at line ${recipientPostalCodeIndex}`);
-    } else if (postalCodeIndices.length === 1) {
-      // If there's only one postal code, we need to determine if it's sender or recipient
-      // In DIN 676, recipient address is typically 4-6 lines from the top
-      const postalCodeIndex = postalCodeIndices[0];
-      if (postalCodeIndex >= 3) {
-        recipientPostalCodeIndex = postalCodeIndex;
-        writeLog(`[PDF Processing] Using postal code at line ${recipientPostalCodeIndex} as recipient`);
-      }
-    }
-    
-    // If we found a recipient postal code, extract the address block around it
-    if (recipientPostalCodeIndex !== -1) {
-      // Postal code and city are typically on the same line
-      const postalCityLine = lines[recipientPostalCodeIndex];
-      const postalCodeMatch = postalCityLine.match(/\b(\d{4,5})\b/);
+    // Extract country if present (line after postal code and city)
+    const countryLineIndex = postalCityLineIndex + 1;
+    if (countryLineIndex < lines.length) {
+      const potentialCountryLine = lines[countryLineIndex];
       
-      if (postalCodeMatch) {
-        result.postalCode = postalCodeMatch[1];
-        
-        // City is typically after the postal code
-        const cityPart = postalCityLine.substring(postalCityLine.indexOf(result.postalCode) + result.postalCode.length).trim();
+      // If it looks like a country (no numbers, not too long)
+      if (!/\b\d+\b/.test(potentialCountryLine) && potentialCountryLine.length < 30) {
+        result.country = potentialCountryLine;
+        writeLog(`[PDF Processing] Setting country to: "${result.country}"`);
+      }
+    }
+    
+    writeLog(`[PDF Processing] Parsed address result: ${JSON.stringify(result)}`);
+    return result;
+  }
+  
+  /**
+   * Extract postal code and city from a line
+   * @param line Line containing postal code and city
+   * @param result Address object to update
+   */
+  private extractPostalCodeAndCity(line: string, result: Partial<ExtractedAddress>): void {
+    // Match either 5-digit German or 4-digit Austrian postal codes
+    const postalMatch = line.match(/\b(\d{4,5})\b/);
+    
+    if (postalMatch) {
+      result.postalCode = postalMatch[1];
+      const isGerman = result.postalCode.length === 5;
+      writeLog(`[PDF Processing] Found ${isGerman ? 'German' : 'Austrian'} postal code: "${result.postalCode}"`);
+      
+      // City is typically after the postal code
+      const cityPart = line.substring(postalMatch.index! + postalMatch[0].length).trim();
+      if (cityPart) {
         result.city = cityPart;
-        
-        writeLog(`[PDF Processing] Extracted postal code: ${result.postalCode} and city: ${result.city}`);
-        
-        // Infer country from postal code format
-        if (result.postalCode.length === 5) {
-          result.country = 'Deutschland'; // German postal code format
-        } else if (result.postalCode.length === 4) {
-          result.country = 'Österreich'; // Austrian postal code format
-        }
-        
-        // Street address is typically the line before postal code
-        if (recipientPostalCodeIndex > 0) {
-          result.street = lines[recipientPostalCodeIndex - 1];
-          writeLog(`[PDF Processing] Extracted street: ${result.street}`);
-        }
-        
-        // Recipient name is typically 1-2 lines before the street
-        if (recipientPostalCodeIndex > 1) {
-          // Check if the line before the street might be a company name or department
-          const potentialNameLine = lines[recipientPostalCodeIndex - 2];
-          
-          // If it doesn't look like a street address, it's likely the recipient name
-          if (!/straße|strasse|gasse|weg|allee|platz|\b\d+\b/i.test(potentialNameLine)) {
-            result.name = potentialNameLine;
-            writeLog(`[PDF Processing] Extracted name: ${result.name}`);
-          }
-          
-          // If we still don't have a name and there's another line before, check that
-          if (!result.name && recipientPostalCodeIndex > 2) {
-            const earlierNameLine = lines[recipientPostalCodeIndex - 3];
-            if (!/straße|strasse|gasse|weg|allee|platz|\b\d+\b/i.test(earlierNameLine)) {
-              result.name = earlierNameLine;
-              writeLog(`[PDF Processing] Extracted name from earlier line: ${result.name}`);
-            }
-          }
-        }
+        writeLog(`[PDF Processing] Setting city to: "${result.city}"`);
       }
     } else {
-      // If we couldn't find a clear recipient postal code, try to identify the recipient block
-      // by looking at the structure of the letter
-      
-      // In DIN 676, the recipient address typically starts around line 4-8
-      // and consists of 3-4 consecutive lines
-      
-      // Look for a block of 3-4 consecutive non-empty lines that could be an address
-      let bestAddressBlockStart = -1;
-      let bestAddressBlockScore = 0;
-      
-      // We'll search in the first part of the document, before the date line
-      const searchEndIndex = dateLineIndex !== -1 ? dateLineIndex : Math.min(15, lines.length);
-      
-      for (let i = 3; i < searchEndIndex - 2; i++) {
-        let blockScore = 0;
-        
-        // Check if this could be the start of an address block
-        // We'll score each potential block based on address-like characteristics
-        
-        // Check for name-like first line (no numbers, not too long)
-        if (i < lines.length && lines[i].length < 40 && !/\d/.test(lines[i])) {
-          blockScore += 1;
-        }
-        
-        // Check for street-like second line (contains street indicators or numbers)
-        if (i + 1 < lines.length && 
-            (lines[i + 1].match(/straße|strasse|gasse|weg|allee|platz/i) || 
-             lines[i + 1].match(/\b\d+\b/))) {
-          blockScore += 2;
-        }
-        
-        // Check for postal code and city in third line
-        if (i + 2 < lines.length && /\b\d{4,5}\b/.test(lines[i + 2])) {
-          blockScore += 3;
-        }
-        
-        // If this block looks more like an address than previous candidates, remember it
-        if (blockScore > bestAddressBlockScore) {
-          bestAddressBlockScore = blockScore;
-          bestAddressBlockStart = i;
-        }
-      }
-      
-      // If we found a likely address block, extract the components
-      if (bestAddressBlockStart !== -1 && bestAddressBlockScore >= 3) {
-        writeLog(`[PDF Processing] Found likely address block starting at line ${bestAddressBlockStart}`);
-        
-        // Extract name from first line
-        result.name = lines[bestAddressBlockStart];
-        writeLog(`[PDF Processing] Extracted name: ${result.name}`);
-        
-        // Extract street from second line
-        if (bestAddressBlockStart + 1 < lines.length) {
-          result.street = lines[bestAddressBlockStart + 1];
-          writeLog(`[PDF Processing] Extracted street: ${result.street}`);
-        }
-        
-        // Extract postal code and city from third line
-        if (bestAddressBlockStart + 2 < lines.length) {
-          const postalCityLine = lines[bestAddressBlockStart + 2];
-          const postalCodeMatch = postalCityLine.match(/\b(\d{4,5})\b/);
-          
-          if (postalCodeMatch) {
-            result.postalCode = postalCodeMatch[1];
-            
-            // City is typically after the postal code
-            const cityPart = postalCityLine.substring(postalCityLine.indexOf(result.postalCode) + result.postalCode.length).trim();
-            result.city = cityPart;
-            
-            writeLog(`[PDF Processing] Extracted postal code: ${result.postalCode} and city: ${result.city}`);
-            
-            // Infer country from postal code format
-            if (result.postalCode.length === 5) {
-              result.country = 'Deutschland';
-            } else if (result.postalCode.length === 4) {
-              result.country = 'Österreich';
-            }
-          } else {
-            // If no postal code found, the whole line might be the city
-            result.city = postalCityLine;
-            writeLog(`[PDF Processing] Extracted city (no postal code): ${result.city}`);
-          }
-        }
-      }
+      // If somehow we got here but there's no postal code, use the whole line as city
+      result.city = line;
+      writeLog(`[PDF Processing] No postal code found, setting city to: "${result.city}"`);
     }
-    
-    // If we still don't have a recipient name, look for it in the signature area
-    // Sometimes the recipient is mentioned near the signature
-    if (!result.name && signatureStartIndex !== -1) {
-      // Look for potential recipient names after the signature start
-      for (let i = signatureStartIndex + 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        // Look for lines that might be a name (not too long, no special characters)
-        if (line.length > 3 && line.length < 40 && 
-            !line.includes('@') && !line.includes('http') && 
-            !/\d{4,}/.test(line) && // No long numbers
-            !/straße|strasse|gasse|weg|allee|platz/i.test(line)) { // Not a street
-          
-          // If this line is followed by what looks like an address, it's likely a name
-          if (i + 1 < lines.length && 
-              (lines[i + 1].match(/straße|strasse|gasse|weg|allee|platz/i) || 
-               lines[i + 1].match(/\b\d+\b/))) {
-            result.name = line;
-            writeLog(`[PDF Processing] Found potential recipient name in signature area: ${result.name}`);
-            
-            // If we don't have a street yet, use the next line
-            if (!result.street) {
-              result.street = lines[i + 1];
-              writeLog(`[PDF Processing] Extracted street from signature area: ${result.street}`);
-              
-              // If there's another line that might contain postal code and city, use it
-              if (i + 2 < lines.length && /\b\d{4,5}\b/.test(lines[i + 2])) {
-                const postalCityLine = lines[i + 2];
-                const postalCodeMatch = postalCityLine.match(/\b(\d{4,5})\b/);
-                
-                if (postalCodeMatch) {
-                  result.postalCode = postalCodeMatch[1];
-                  
-                  // City is typically after the postal code
-                  const cityPart = postalCityLine.substring(postalCityLine.indexOf(result.postalCode) + result.postalCode.length).trim();
-                  result.city = cityPart;
-                  
-                  writeLog(`[PDF Processing] Extracted postal code from signature area: ${result.postalCode} and city: ${result.city}`);
-                  
-                  // Infer country from postal code format
-                  if (result.postalCode.length === 5) {
-                    result.country = 'Deutschland';
-                  } else if (result.postalCode.length === 4) {
-                    result.country = 'Österreich';
-                  }
-                }
-              }
-            }
-            
-            break;
-          }
-        }
-      }
-    }
-    
-    // Final validation and cleanup
-    
-    // If we have a name that contains a street indicator, it might be a street
-    if (result.name && (result.name.match(/straße|strasse|gasse|weg|allee|platz/i) || result.name.match(/\b\d+\b/)) && !result.street) {
-      result.street = result.name;
-      result.name = undefined;
-      writeLog(`[PDF Processing] Moved name to street as it appears to be a street address: ${result.street}`);
-    }
-    
-    // If we have a street that looks more like a name, swap them
-    if (result.street && !result.street.match(/straße|strasse|gasse|weg|allee|platz/i) && !result.street.match(/\b\d+\b/) && !result.name) {
-      result.name = result.street;
-      result.street = undefined;
-      writeLog(`[PDF Processing] Moved street to name as it appears to be a name: ${result.name}`);
-    }
-    
-    // If we have a city with a postal code, extract it
-    if (result.city && result.city.match(/\b\d{4,5}\b/) && !result.postalCode) {
-      const postalCodeMatch = result.city.match(/\b(\d{4,5})\b/);
-      if (postalCodeMatch) {
-        result.postalCode = postalCodeMatch[1];
-        result.city = result.city.replace(result.postalCode, '').trim();
-        writeLog(`[PDF Processing] Extracted postal code from city: ${result.postalCode}, city: ${result.city}`);
-      }
-    }
-    
-    // If we have a name that contains a comma, it might be a "Last name, First name" format
-    if (result.name && result.name.includes(',')) {
-      const parts = result.name.split(',').map(p => p.trim());
-      if (parts.length === 2 && parts[0] && parts[1]) {
-        // Rearrange to "First name Last name" format
-        result.name = `${parts[1]} ${parts[0]}`;
-        writeLog(`[PDF Processing] Rearranged name from "Last, First" to "First Last": ${result.name}`);
-      }
-    }
-    
-    // Look specifically for the recipient at the end of the document
-    // This is a common pattern in German business letters
-    let foundRecipientAtEnd = false;
-    
-    // Start from the end and look for a complete address block
-    for (let i = lines.length - 1; i >= Math.max(0, lines.length - 15); i--) {
-      // Look for a postal code
-      if (/\b\d{4,5}\b/.test(lines[i])) {
-        // Check if this is part of a complete address (name, street, postal code + city)
-        if (i >= 2) {
-          // Check if the previous lines look like a street and name
-          const potentialStreet = lines[i - 1];
-          const potentialName = lines[i - 2];
-          
-          // If these look like a valid address, use them
-          if (potentialStreet && potentialName) {
-            const postalCityLine = lines[i];
-            const postalCodeMatch = postalCityLine.match(/\b(\d{4,5})\b/);
-            
-            if (postalCodeMatch) {
-              // This looks like a complete address at the end of the document
-              result.postalCode = postalCodeMatch[1];
-              
-              // City is typically after the postal code
-              const cityPart = postalCityLine.substring(postalCityLine.indexOf(result.postalCode) + result.postalCode.length).trim();
-              result.city = cityPart || postalCityLine; // Use the whole line if we couldn't extract the city
-              
-              result.street = potentialStreet;
-              result.name = potentialName;
-              
-              // Infer country from postal code format
-              if (result.postalCode.length === 5) {
-                result.country = 'Deutschland';
-              } else if (result.postalCode.length === 4) {
-                result.country = 'Österreich';
-              }
-              
-              writeLog(`[PDF Processing] Found complete address block at end of document`);
-              writeLog(`[PDF Processing] Name: ${result.name}`);
-              writeLog(`[PDF Processing] Street: ${result.street}`);
-              writeLog(`[PDF Processing] Postal code: ${result.postalCode}, City: ${result.city}`);
-              
-              foundRecipientAtEnd = true;
-              break;
-            }
-          }
-        }
-      }
-    }
-    
-    // If we found a complete address at the end, it's likely the recipient
-    // This takes precedence over other extracted information
-    if (foundRecipientAtEnd) {
-      // We've already updated the result object, so no need to do anything else
-      writeLog(`[PDF Processing] Using address block found at end of document as recipient`);
-    }
-    
-    return result;
   }
 
   /**
-   * Check if the parsed address has enough valid components
-   * @param address Parsed address components
-   * @returns Boolean indicating if address is valid
+   * Validate if the extracted address has the minimum required fields
+   * @param address Partial address object to validate
+   * @returns boolean indicating if the address is valid
    */
   private isValidAddress(address: Partial<ExtractedAddress>): boolean {
-    // An address is considered valid if it has at least name, street, and city
-    const isValid = !!(
-      address.name && 
-      address.street && 
-      address.city
-    );
+    // For a valid address, we need at least:
+    // 1. A name
+    // 2. A street
+    // 3. Either a city or a postal code
+    
+    const hasName = !!address.name;
+    const hasStreet = !!address.street;
+    const hasCityOrPostalCode = !!(address.city || address.postalCode);
+    
+    const isValid = hasName && hasStreet && hasCityOrPostalCode;
     
     writeLog(`[PDF Processing] Address validation result: ${isValid} for ${JSON.stringify(address)}`);
+    writeLog(`[PDF Processing] Has name: ${hasName}, Has street: ${hasStreet}, Has city or postal code: ${hasCityOrPostalCode}`);
     
     return isValid;
   }
