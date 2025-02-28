@@ -219,10 +219,8 @@ export class PdfProcessingService {
       // Group items by lines and sort them
       const windowLines = this.groupTextByLines(windowItems);
       
-      // Convert lines to text
-      const windowText = windowLines
-        .map(line => line.map(item => item.str).join(' '))
-        .join('\n');
+      // Convert lines to text with improved spacing
+      const windowText = this.formatTextWithImprovedSpacing(windowLines);
       
       writeLog(`[PDF Processing] ${formDescription} address window text:\n${windowText}`);
       
@@ -355,6 +353,82 @@ export class PdfProcessingService {
   }
 
   /**
+   * Format text with improved spacing based on the grouped lines
+   * This method intelligently determines when to add spaces between text items
+   * @param lines Array of arrays, where each inner array represents a line of text
+   * @returns Formatted text with proper spacing
+   */
+  private formatTextWithImprovedSpacing(lines: any[][]): string {
+    return lines.map(line => {
+      // Process each line to determine proper spacing between text items
+      let lineText = '';
+      let lastItem = null;
+      
+      for (let i = 0; i < line.length; i++) {
+        const item = line[i];
+        
+        if (lastItem) {
+          // Calculate the gap between this item and the last one
+          const gap = item.x - (lastItem.x + lastItem.width);
+          
+          // Determine if we need to add a space based on the gap size and context
+          const needsSpace = this.determineIfSpaceNeeded(lastItem, item, gap);
+          
+          if (needsSpace) {
+            lineText += ' ';
+          }
+        }
+        
+        lineText += item.str;
+        lastItem = item;
+      }
+      
+      return lineText;
+    }).join('\n');
+  }
+  
+  /**
+   * Determine if a space is needed between two text items
+   * @param lastItem The previous text item
+   * @param currentItem The current text item
+   * @param gap The gap between the items in points
+   * @returns Boolean indicating if a space is needed
+   */
+  private determineIfSpaceNeeded(lastItem: any, currentItem: any, gap: number): boolean {
+    // If the gap is very small, likely no space is needed
+    if (gap < 1) return false;
+    
+    // If the gap is large, likely a space is needed
+    if (gap > 10) return true;
+    
+    // Check if the last character of the previous item is a space
+    const lastCharIsSpace = lastItem.str.endsWith(' ');
+    if (lastCharIsSpace) return false;
+    
+    // Check if the first character of the current item is a space
+    const firstCharIsSpace = currentItem.str.startsWith(' ');
+    if (firstCharIsSpace) return false;
+    
+    // Check for punctuation that doesn't need a following space
+    const lastChar = lastItem.str.charAt(lastItem.str.length - 1);
+    if (['(', '[', '{', '-'].includes(lastChar)) return false;
+    
+    // Check for punctuation that doesn't need a preceding space
+    const firstChar = currentItem.str.charAt(0);
+    if ([')', ']', '}', ',', '.', ':', ';', '!', '?'].includes(firstChar)) return false;
+    
+    // For German addresses, check for specific patterns
+    // Don't add space before/after certain characters in postal codes
+    if (/^\d+$/.test(lastItem.str) && /^\d+$/.test(currentItem.str)) {
+      // If both items are digits and the gap is small, likely part of the same number
+      if (gap < 5) return false;
+    }
+    
+    // Default to adding a space if the gap is moderate
+    return gap > 3;
+  }
+
+  /**
    * Parse address from text according to DIN 5008 standards
    * This method identifies recipient address components from the given text,
    * accounting for potential sender information at the top
@@ -449,8 +523,11 @@ export class PdfProcessingService {
    * @param result Address object to update
    */
   private extractPostalCodeAndCity(line: string, result: Partial<ExtractedAddress>): void {
+    // Clean up the line by normalizing spaces in postal codes
+    const cleanedLine = this.normalizePostalCodeSpaces(line);
+    
     // Match either 5-digit German or 4-digit Austrian postal codes
-    const postalMatch = line.match(/\b(\d{4,5})\b/);
+    const postalMatch = cleanedLine.match(/\b(\d{4,5})\b/);
     
     if (postalMatch) {
       result.postalCode = postalMatch[1];
@@ -458,16 +535,32 @@ export class PdfProcessingService {
       writeLog(`[PDF Processing] Found ${isGerman ? 'German' : 'Austrian'} postal code: "${result.postalCode}"`);
       
       // City is typically after the postal code
-      const cityPart = line.substring(postalMatch.index! + postalMatch[0].length).trim();
+      const cityPart = cleanedLine.substring(postalMatch.index! + postalMatch[0].length).trim();
       if (cityPart) {
         result.city = cityPart;
         writeLog(`[PDF Processing] Setting city to: "${result.city}"`);
       }
     } else {
       // If somehow we got here but there's no postal code, use the whole line as city
-      result.city = line;
+      result.city = cleanedLine;
       writeLog(`[PDF Processing] No postal code found, setting city to: "${result.city}"`);
     }
+  }
+
+  /**
+   * Normalize spaces in postal codes
+   * This specifically targets the issue of postal codes being split with spaces
+   * @param line The line to normalize
+   * @returns Normalized line with corrected postal code spacing
+   */
+  private normalizePostalCodeSpaces(line: string): string {
+    // Fix common postal code spacing issues
+    // Example: "1 0 80 Wien" -> "1080 Wien"
+    return line.replace(/(\d)\s+(\d)\s+(\d{2})\b/g, '$1$2$3')
+              .replace(/(\d)\s+(\d{3})\b/g, '$1$2')
+              .replace(/(\d{2})\s+(\d{2})\b/g, '$1$2')
+              .replace(/(\d{3})\s+(\d{1})\b/g, '$1$2')
+              .replace(/(\d{4})\s+(\d{1})\b/g, '$1$2');
   }
 
   /**

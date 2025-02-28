@@ -20582,6 +20582,83 @@ Now let's restart the server to apply these changes:
 
 _****_
 
+```bash
+pkill -f "ts-node src/app.ts" && cd /home/neo/cursor/BriefButler/backend && npm run dev
+```
+
+---
+
+_****_
+
+
+
+I've completely revised the address parsing logic to correctly handle German address formats according to DIN 5008 standards. Here's what I changed:
+
+### Key Improvements:
+
+1. **Structured Line-by-Line Parsing**
+   - Now recognizes the standard German address format with fixed positions:
+     - Line 0: Sender information (e.g., "Stadt Paderborn - Marienplatz 11a - 33098 Paderborn")
+     - Line 1: Salutation (e.g., "Frau" or "Herr")
+     - Line 2: Recipient name
+     - Line 3: Street and house number
+     - Line 4: Postal code and city
+     - Line 5: Optional country (for international mail)
+
+2. **Salutation Detection**
+   - Added specific detection for German salutations like "Herr", "Frau", "Herrn", "Familie", etc.
+   - Properly identifies the salutation line and doesn't treat it as part of the recipient's name or country
+
+3. **Simplified and More Accurate Logic**
+   - Removed complex heuristics that were causing confusion
+   - Uses a straightforward positional approach that matches the standard German address format
+   - Eliminated fallback methods that were causing incorrect interpretations
+
+4. **Stricter Validation**
+   - Now requires a name, street, and postal code/city for an address to be considered valid
+   - This ensures we don't accept partial or incorrectly parsed addresses
+
+The new approach is much more aligned with the German DIN 5008 standard and should correctly identify:
+- The first line as sender information (not recipient name)
+- The second line as a salutation (not country)
+- The third line as the recipient's name
+- The fourth line as the street address
+- The fifth line as the postal code and city
+
+This should resolve the issues you were seeing with the address parsing.
+
+---
+
+_**User**_
+
+we are getting better now. We still have an issue with OCR of the document, generating too many unwanted blanks (spaces) that are not in the text. What do you suggest, we have to improve that. The idea to do it in the code will alwasy fail since there are no valid metrics for deleting blanks. Is there another library we could use for pdf ocr or parsing?
+
+---
+
+_**Assistant**_
+
+I see the issue with the OCR output - there are indeed many unwanted spaces being generated that aren't in the original text. This is a common problem with PDF text extraction, especially when dealing with formatted documents like letters.
+
+Let me explore some better alternatives for PDF text extraction that might provide cleaner results.
+
+---
+
+_****_
+
+
+
+---
+
+_****_
+
+
+
+Based on my research, there are several better alternatives for PDF text extraction that could help with the spacing issues:
+
+---
+
+_****_
+
 
 
 ---
