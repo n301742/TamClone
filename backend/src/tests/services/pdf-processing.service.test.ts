@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { PdfProcessingService, ExtractedAddress } from '../../services/pdf-processing.service';
+import { PdfProcessingService, ExtractedAddress, AddressFormType } from '../../services/pdf-processing.service';
 
 // Mock dependencies
 jest.mock('fs', () => ({
@@ -449,7 +449,7 @@ describe('PdfProcessingService', () => {
         });
       
       // Call the method with forceTargetedExtraction set to true
-      const result = await pdfProcessingService.extractAddressFromPdf('test.pdf', true);
+      const result = await pdfProcessingService.extractAddressFromPdf('test.pdf', AddressFormType.FORM_A);
       
       // Assertions
       expect(mockPerformOcr).toHaveBeenCalledWith('test.pdf');

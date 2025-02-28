@@ -63,12 +63,30 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
     };
 
     // If extractAddress is true, try to extract address from the PDF
+    let addressExtractionDetails = null;
     if (extractAddress === true || extractAddress === 'true') {
       try {
         console.log('Extracting address from PDF:', file.path);
         const extractedAddress = await pdfProcessingService.extractAddressFromPdf(file.path);
         
         console.log('Extracted address result:', JSON.stringify(extractedAddress));
+        
+        // Store extraction details for the response
+        addressExtractionDetails = {
+          confidence: extractedAddress.confidence,
+          rawText: extractedAddress.rawText,
+          zipCodeValidation: {
+            attempted: !!(extractedAddress.postalCode && extractedAddress.city),
+            countryDetected: extractedAddress.country || null,
+            zipCodeFormat: extractedAddress.postalCode ? 
+              (extractedAddress.postalCode.length === 5 ? 'German (5-digit)' : 
+               extractedAddress.postalCode.length === 4 ? 'Austrian (4-digit)' : 'Unknown') : null,
+            cityProvided: !!extractedAddress.city,
+            matchFoundInDatabase: (extractedAddress as any).zipValidationDetails?.matchFound || false,
+            originalCity: (extractedAddress as any).zipValidationDetails?.originalCity || extractedAddress.city || null,
+            suggestedCity: (extractedAddress as any).zipValidationDetails?.suggestedCity || null
+          }
+        };
         
         // Only use extracted address if confidence is above threshold
         if (extractedAddress.confidence >= 0.6) {
@@ -166,7 +184,10 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
     return res.status(201).json({
       status: 'success',
       message: 'Letter created successfully',
-      data: { letter },
+      data: { 
+        letter,
+        addressExtraction: addressExtractionDetails
+      },
     });
   } catch (error) {
     next(error);

@@ -126,4 +126,16 @@ model AddressBook {
   isDefault       Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ZIP code validation cache model
+model ZipCode {
+  id          String   @id @default(uuid())
+  zipCode     String   @unique
+  city        String
+  state       String?
+  country     String
+  source      String   @default("internal") // "internal", "openplz", etc.
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
 } 
