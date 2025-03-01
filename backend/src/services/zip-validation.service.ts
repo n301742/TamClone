@@ -180,6 +180,7 @@ export class ZipValidationService {
     isValid: boolean;
     confidenceAdjustment: number;
     suggestedCity?: string;
+    allPossibleCities?: string[];
     country?: 'DE' | 'AT';
     mismatch?: boolean;
     originalCity?: string;
@@ -207,7 +208,8 @@ export class ZipValidationService {
       return { 
         isValid: true, 
         confidenceAdjustment: 0.1,
-        country: zipEntry.country
+        country: zipEntry.country,
+        allPossibleCities: [zipEntry.city]
       };
     }
     
@@ -219,6 +221,7 @@ export class ZipValidationService {
         isValid: true, 
         confidenceAdjustment: 0.05,
         suggestedCity: zipEntry.city,
+        allPossibleCities: [zipEntry.city],
         country: zipEntry.country,
         mismatch: true,
         originalCity: city
@@ -231,6 +234,7 @@ export class ZipValidationService {
         isValid: true,
         confidenceAdjustment: 0.05,
         suggestedCity: zipEntry.city,
+        allPossibleCities: [zipEntry.city],
         country: zipEntry.country,
         mismatch: true,
         originalCity: city
@@ -242,6 +246,7 @@ export class ZipValidationService {
       isValid: false, 
       confidenceAdjustment: -0.2,
       suggestedCity: zipEntry.city,
+      allPossibleCities: [zipEntry.city],
       country: zipEntry.country,
       mismatch: true,
       originalCity: city

@@ -96,12 +96,13 @@ export interface ExtractedAddress {
   state?: string;
   postalCode?: string;
   country?: string;
-  rawText: string;
   confidence: number;
+  rawText?: string;
   zipValidationDetails?: {
     matchFound: boolean;
     originalCity?: string;
     suggestedCity?: string;
+    allPossibleCities?: string[];
     mismatch?: boolean;
   };
 }
@@ -483,6 +484,7 @@ export class PdfProcessingService {
         matchFound: boolean;
         originalCity?: string;
         suggestedCity?: string;
+        allPossibleCities?: string[];
         mismatch?: boolean;
       }
     }> = {};
@@ -556,6 +558,11 @@ export class PdfProcessingService {
           originalCity: originalCity
         };
         
+        // Variables for tracking validation status
+        let confidenceAdjustment = 0;
+        let isValid = true;
+        const isAustrian = result.postalCode.length === 4;
+        
         // First try internal validation
         const internalValidationResult = await zipValidationService.validateZipCodeCity(
           result.postalCode,
@@ -578,18 +585,75 @@ export class PdfProcessingService {
             matchFound: externalValidationResult.isValid,
             originalCity: originalCity,
             suggestedCity: externalValidationResult.suggestedCity,
+            allPossibleCities: externalValidationResult.allPossibleCities,
             mismatch: externalValidationResult.mismatch
           };
+          
+          // Check if the original city is in the list of possible cities
+          if (externalValidationResult.allPossibleCities && 
+              result.zipValidationDetails && 
+              result.zipValidationDetails.originalCity) {
+            const originalCity = result.zipValidationDetails.originalCity;
+            const isInPossibleCities = externalValidationResult.allPossibleCities.some(
+              city => this.normalizeCity(city) === this.normalizeCity(originalCity)
+            );
+            
+            if (isInPossibleCities) {
+              // If the original city is in the list of possible cities, mark as valid
+              writeLog(`[PDF Processing] Original city "${originalCity}" is in the list of possible cities for ZIP code ${result.postalCode}`);
+              if (result.zipValidationDetails) {
+                result.zipValidationDetails.matchFound = true;
+                result.zipValidationDetails.mismatch = false;
+              }
+              // Set confidence adjustment to positive
+              confidenceAdjustment = 0.1;
+            } else {
+              // Use the external validation result
+              confidenceAdjustment = externalValidationResult.confidenceAdjustment;
+            }
+          } else {
+            // Use the external validation result
+            confidenceAdjustment = externalValidationResult.confidenceAdjustment;
+          }
+          
+          // For Austrian addresses, be more lenient with validation failures
+          // The OpenPLZ API might not have complete coverage for Austrian postal codes
+          if (!externalValidationResult.isValid && isAustrian) {
+            writeLog(`[PDF Processing] Austrian postal code detected, being more lenient with validation`);
+            
+            // For Austrian addresses, don't invalidate the address just because the API validation failed
+            // Instead, apply a smaller confidence adjustment
+            confidenceAdjustment = Math.max(confidenceAdjustment, -0.1);
+            
+            // Don't invalidate the address for Austrian postal codes
+            if (result.country === 'Austria' || result.postalCode.length === 4) {
+              writeLog(`[PDF Processing] Keeping Austrian address valid despite validation failure`);
+              // Keep the address valid but with reduced confidence
+              isValid = true;
+            }
+          } else if (!externalValidationResult.isValid && externalValidationResult.confidenceAdjustment <= -0.2) {
+            // For non-Austrian addresses, invalidate if confidence adjustment is significant
+            isValid = false;
+            writeLog(`[PDF Processing] Address invalidated due to external ZIP code validation failure`);
+          }
           
           // Only update the city if it's a valid match and not a mismatch
           if (externalValidationResult.suggestedCity && 
               externalValidationResult.isValid && 
               !externalValidationResult.mismatch) {
             writeLog(`[PDF Processing] Correcting city from "${result.city}" to "${externalValidationResult.suggestedCity}"`);
+            if (result.zipValidationDetails) {
+              result.zipValidationDetails.suggestedCity = externalValidationResult.suggestedCity;
+            }
             result.city = externalValidationResult.suggestedCity;
           } else if (externalValidationResult.mismatch) {
             // Log the mismatch but don't change the city
-            writeLog(`[PDF Processing] ZIP code and city mismatch detected. Original: "${originalCity}", Suggested: "${externalValidationResult.suggestedCity}"`);
+            writeLog(`[PDF Processing] ZIP code and city mismatch detected. Original: "${result.city}", Suggested: "${externalValidationResult.suggestedCity}"`);
+            
+            // Log all possible cities if available
+            if (externalValidationResult.allPossibleCities && externalValidationResult.allPossibleCities.length > 0) {
+              writeLog(`[PDF Processing] All possible cities for ZIP code ${result.postalCode}: ${externalValidationResult.allPossibleCities.join(', ')}`);
+            }
           }
           
           // Set the country based on the validation result if not already set
@@ -606,18 +670,54 @@ export class PdfProcessingService {
             matchFound: internalValidationResult.isValid,
             originalCity: originalCity,
             suggestedCity: internalValidationResult.suggestedCity,
+            allPossibleCities: internalValidationResult.allPossibleCities,
             mismatch: internalValidationResult.mismatch
           };
+          
+          // Check if the original city is in the list of possible cities
+          if (internalValidationResult.allPossibleCities && 
+              result.zipValidationDetails && 
+              result.zipValidationDetails.originalCity) {
+            const originalCity = result.zipValidationDetails.originalCity;
+            const isInPossibleCities = internalValidationResult.allPossibleCities.some(
+              city => this.normalizeCity(city) === this.normalizeCity(originalCity)
+            );
+            
+            if (isInPossibleCities) {
+              // If the original city is in the list of possible cities, mark as valid
+              writeLog(`[PDF Processing] Original city "${originalCity}" is in the list of possible cities for ZIP code ${result.postalCode}`);
+              if (result.zipValidationDetails) {
+                result.zipValidationDetails.matchFound = true;
+                result.zipValidationDetails.mismatch = false;
+              }
+              // Set confidence adjustment to positive
+              confidenceAdjustment = 0.1;
+            } else {
+              // Use the internal validation result
+              confidenceAdjustment = internalValidationResult.confidenceAdjustment;
+            }
+          } else {
+            // Use the internal validation result
+            confidenceAdjustment = internalValidationResult.confidenceAdjustment;
+          }
           
           // Only update the city if it's a valid match and not a mismatch
           if (internalValidationResult.suggestedCity && 
               internalValidationResult.isValid && 
               !internalValidationResult.mismatch) {
             writeLog(`[PDF Processing] Correcting city from "${result.city}" to "${internalValidationResult.suggestedCity}"`);
+            if (result.zipValidationDetails) {
+              result.zipValidationDetails.suggestedCity = internalValidationResult.suggestedCity;
+            }
             result.city = internalValidationResult.suggestedCity;
           } else if (internalValidationResult.mismatch) {
             // Log the mismatch but don't change the city
-            writeLog(`[PDF Processing] ZIP code and city mismatch detected. Original: "${originalCity}", Suggested: "${internalValidationResult.suggestedCity}"`);
+            writeLog(`[PDF Processing] ZIP code and city mismatch detected. Original: "${result.city}", Suggested: "${internalValidationResult.suggestedCity}"`);
+            
+            // Log all possible cities if available
+            if (internalValidationResult.allPossibleCities && internalValidationResult.allPossibleCities.length > 0) {
+              writeLog(`[PDF Processing] All possible cities for ZIP code ${result.postalCode}: ${internalValidationResult.allPossibleCities.join(', ')}`);
+            }
           }
           
           // Set the country based on the validation result if not already set
@@ -689,6 +789,25 @@ export class PdfProcessingService {
   }
 
   /**
+   * Normalize a city name for comparison
+   * @param city The city name to normalize
+   * @returns Normalized city name
+   */
+  private normalizeCity(city: string): string {
+    return city
+      .toLowerCase()
+      .trim()
+      // Remove special characters
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // Replace umlauts
+      .replace(/ä/g, 'a')
+      .replace(/ö/g, 'o')
+      .replace(/ü/g, 'u')
+      .replace(/ß/g, 'ss');
+  }
+
+  /**
    * Validate if the extracted address has the minimum required fields
    * @param address Partial address object to validate
    * @returns boolean indicating if the address is valid
@@ -742,10 +861,35 @@ export class PdfProcessingService {
             address.zipValidationDetails.matchFound = externalValidationResult.isValid;
             address.zipValidationDetails.mismatch = externalValidationResult.mismatch;
             address.zipValidationDetails.suggestedCity = externalValidationResult.suggestedCity;
+            address.zipValidationDetails.allPossibleCities = externalValidationResult.allPossibleCities;
           }
           
-          // Use the external validation result
-          confidenceAdjustment = externalValidationResult.confidenceAdjustment;
+          // Check if the original city is in the list of possible cities
+          if (externalValidationResult.allPossibleCities && 
+              address.zipValidationDetails && 
+              address.zipValidationDetails.originalCity) {
+            const originalCity = address.zipValidationDetails.originalCity;
+            const isInPossibleCities = externalValidationResult.allPossibleCities.some(
+              city => this.normalizeCity(city) === this.normalizeCity(originalCity)
+            );
+            
+            if (isInPossibleCities) {
+              // If the original city is in the list of possible cities, mark as valid
+              writeLog(`[PDF Processing] Original city "${originalCity}" is in the list of possible cities for ZIP code ${address.postalCode}`);
+              if (address.zipValidationDetails) {
+                address.zipValidationDetails.matchFound = true;
+                address.zipValidationDetails.mismatch = false;
+              }
+              // Set confidence adjustment to positive
+              confidenceAdjustment = 0.1;
+            } else {
+              // Use the external validation result
+              confidenceAdjustment = externalValidationResult.confidenceAdjustment;
+            }
+          } else {
+            // Use the external validation result
+            confidenceAdjustment = externalValidationResult.confidenceAdjustment;
+          }
           
           // For Austrian addresses, be more lenient with validation failures
           // The OpenPLZ API might not have complete coverage for Austrian postal codes
@@ -780,6 +924,11 @@ export class PdfProcessingService {
           } else if (externalValidationResult.mismatch) {
             // Log the mismatch but don't change the city
             writeLog(`[PDF Processing] ZIP code and city mismatch detected. Original: "${address.city}", Suggested: "${externalValidationResult.suggestedCity}"`);
+            
+            // Log all possible cities if available
+            if (externalValidationResult.allPossibleCities && externalValidationResult.allPossibleCities.length > 0) {
+              writeLog(`[PDF Processing] All possible cities for ZIP code ${address.postalCode}: ${externalValidationResult.allPossibleCities.join(', ')}`);
+            }
           }
           
           // Set the country based on the validation result if not already set
@@ -796,10 +945,35 @@ export class PdfProcessingService {
             address.zipValidationDetails.matchFound = internalValidationResult.isValid;
             address.zipValidationDetails.mismatch = internalValidationResult.mismatch;
             address.zipValidationDetails.suggestedCity = internalValidationResult.suggestedCity;
+            address.zipValidationDetails.allPossibleCities = internalValidationResult.allPossibleCities;
           }
           
-          // Use the internal validation result
-          confidenceAdjustment = internalValidationResult.confidenceAdjustment;
+          // Check if the original city is in the list of possible cities
+          if (internalValidationResult.allPossibleCities && 
+              address.zipValidationDetails && 
+              address.zipValidationDetails.originalCity) {
+            const originalCity = address.zipValidationDetails.originalCity;
+            const isInPossibleCities = internalValidationResult.allPossibleCities.some(
+              city => this.normalizeCity(city) === this.normalizeCity(originalCity)
+            );
+            
+            if (isInPossibleCities) {
+              // If the original city is in the list of possible cities, mark as valid
+              writeLog(`[PDF Processing] Original city "${originalCity}" is in the list of possible cities for ZIP code ${address.postalCode}`);
+              if (address.zipValidationDetails) {
+                address.zipValidationDetails.matchFound = true;
+                address.zipValidationDetails.mismatch = false;
+              }
+              // Set confidence adjustment to positive
+              confidenceAdjustment = 0.1;
+            } else {
+              // Use the internal validation result
+              confidenceAdjustment = internalValidationResult.confidenceAdjustment;
+            }
+          } else {
+            // Use the internal validation result
+            confidenceAdjustment = internalValidationResult.confidenceAdjustment;
+          }
           
           // Only update the city if it's a valid match and not a mismatch
           if (internalValidationResult.suggestedCity && 
@@ -813,6 +987,11 @@ export class PdfProcessingService {
           } else if (internalValidationResult.mismatch) {
             // Log the mismatch but don't change the city
             writeLog(`[PDF Processing] ZIP code and city mismatch detected. Original: "${address.city}", Suggested: "${internalValidationResult.suggestedCity}"`);
+            
+            // Log all possible cities if available
+            if (internalValidationResult.allPossibleCities && internalValidationResult.allPossibleCities.length > 0) {
+              writeLog(`[PDF Processing] All possible cities for ZIP code ${address.postalCode}: ${internalValidationResult.allPossibleCities.join(', ')}`);
+            }
           }
           
           // Set the country based on the validation result if not already set
@@ -836,4 +1015,4 @@ export class PdfProcessingService {
 }
 
 // Export a singleton instance
-export const pdfProcessingService = new PdfProcessingService(); 
+export const pdfProcessingService = new PdfProcessingService();

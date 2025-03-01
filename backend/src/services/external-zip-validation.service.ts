@@ -38,6 +38,7 @@ export class ExternalZipValidationService {
   public async validateZipCode(zipCode: string): Promise<{
     isValid: boolean;
     city?: string;
+    allCities?: string[]; // New field to return all possible cities
     state?: string;
     country?: string;
     confidenceAdjustment: number;
@@ -51,13 +52,22 @@ export class ExternalZipValidationService {
       }
       
       // Check our internal database first
-      const internalResult = await this.checkInternalDatabase(zipCode);
-      if (internalResult && internalResult.city) {
-        console.log(`[External ZIP Validation] ZIP code ${zipCode} found in internal database`);
+      const internalResults = await this.checkInternalDatabase(zipCode);
+      if (internalResults && internalResults.length > 0) {
+        console.log(`[External ZIP Validation] ZIP code ${zipCode} found in internal database with ${internalResults.length} cities`);
+        
+        // Get all city names
+        const cities = internalResults.map(result => result.city);
+        
+        // Use the first city as the primary one
+        const primaryCity = cities[0];
+        const state = internalResults[0].state || undefined;
+        
         return { 
           isValid: true, 
-          city: internalResult.city,
-          state: internalResult.state || undefined,
+          city: primaryCity,
+          allCities: cities,
+          state: state,
           country: countryCode === 'DE' ? 'Germany' : 'Austria',
           confidenceAdjustment: 0.2 
         };
@@ -82,18 +92,40 @@ export class ExternalZipValidationService {
         
         // If we get a successful response with data, the ZIP code is valid
         if (response.data && response.data.length > 0) {
-          const place = response.data[0];
+          // Process all places returned by the API
+          const places = response.data;
+          console.log(`[External ZIP Validation] Found ${places.length} localities for ZIP code ${zipCode}`);
           
-          // Handle response format (same for both DE and AT in Localities endpoint)
-          const city = place.name || '';
-          const state = place.federalProvince?.name || place.district?.name || '';
+          // Extract city names and state from all places
+          const cities: string[] = [];
+          let state = '';
           
-          // Cache this result in our internal database
-          await this.cacheZipCodeResult(zipCode, city, state, countryCode, 'openplz');
+          for (const place of places) {
+            const cityName = place.name || '';
+            if (cityName && !cities.includes(cityName)) {
+              cities.push(cityName);
+            }
+            
+            // Use the state from the first place (should be the same for all)
+            if (!state && place.federalProvince?.name) {
+              state = place.federalProvince.name;
+            } else if (!state && place.district?.name) {
+              state = place.district.name;
+            }
+          }
+          
+          // Cache all cities for this ZIP code
+          for (const city of cities) {
+            await this.cacheZipCodeResult(zipCode, city, state, countryCode, 'openplz');
+          }
+          
+          // Use the first city as the primary one
+          const primaryCity = cities[0];
           
           return {
             isValid: true,
-            city,
+            city: primaryCity,
+            allCities: cities,
             state,
             country: countryCode === 'DE' ? 'Germany' : 'Austria',
             confidenceAdjustment: 0.2
@@ -132,77 +164,227 @@ export class ExternalZipValidationService {
   public async validateZipCodeCity(zipCode: string, city: string): Promise<{
     isValid: boolean;
     suggestedCity?: string;
+    allPossibleCities?: string[]; // New field to return all possible cities
     confidenceAdjustment: number;
     country?: string;
-    mismatch?: boolean;  // New flag to indicate a mismatch between ZIP and city
+    mismatch?: boolean;  // Flag to indicate a mismatch between ZIP and city
     originalCity?: string; // Keep track of the original city
   }> {
     try {
       // Normalize the city name for better matching
       const normalizedCity = this.normalizeCity(city);
       
-      // First, validate the ZIP code
-      const validationResult = await this.validateZipCode(zipCode);
+      // First, check if we have this ZIP code in our internal database
+      const internalResults = await this.checkInternalDatabase(zipCode);
+      const internalCities = internalResults?.map(result => result.city) || [];
       
-      // If the ZIP code is not valid, return the result
-      if (!validationResult.isValid) {
-        return {
-          isValid: false,
-          confidenceAdjustment: validationResult.confidenceAdjustment,
-          country: validationResult.country,
-          // Always include the original city
-          originalCity: city,
-          // Set mismatch to true since we couldn't validate
-          mismatch: true
-        };
-      }
-      
-      // If we have a city from the validation, compare it with the provided city
-      if (validationResult.city) {
-        const normalizedValidCity = this.normalizeCity(validationResult.city);
+      // Check if the city matches any of the cities in our internal database
+      let internalMatch = false;
+      if (internalResults && internalResults.length > 0) {
+        const normalizedInternalCities = internalCities.map(c => this.normalizeCity(c));
+        const exactMatchIndex = normalizedInternalCities.findIndex(c => c === normalizedCity);
         
-        // Check if the cities match
-        if (normalizedCity === normalizedValidCity) {
-          // Perfect match
+        if (exactMatchIndex !== -1) {
+          // Found an exact match in our internal database
+          console.log(`[External ZIP Validation] ZIP code ${zipCode} with city ${city} is valid (found in internal database)`);
+          internalMatch = true;
           return {
             isValid: true,
             confidenceAdjustment: 0.2,
-            country: validationResult.country,
-            suggestedCity: validationResult.city, // Include suggested city even for perfect matches
+            country: zipCode.length === 4 ? 'Austria' : 'Germany',
+            suggestedCity: internalCities[exactMatchIndex],
+            allPossibleCities: internalCities,
             originalCity: city,
             mismatch: false
-          };
-        } else if (normalizedCity.includes(normalizedValidCity) || normalizedValidCity.includes(normalizedCity)) {
-          // Partial match - flag as a mismatch but still valid
-          return {
-            isValid: true,
-            suggestedCity: validationResult.city,
-            originalCity: city,
-            mismatch: true,
-            confidenceAdjustment: 0.1,
-            country: validationResult.country
-          };
-        } else {
-          // No match - flag as a mismatch and not valid
-          return {
-            isValid: false,
-            suggestedCity: validationResult.city,
-            originalCity: city,
-            mismatch: true,
-            confidenceAdjustment: -0.1,
-            country: validationResult.country
           };
         }
       }
       
-      // If we don't have a city from the API, we can't validate
-      return { 
-        isValid: false, 
-        confidenceAdjustment: -0.1,
-        country: validationResult.country,
-        originalCity: city,
-        mismatch: true
-      };
+      // Always query the external API, even if we have the ZIP code in our database
+      // This allows us to discover new valid city combinations
+      console.log(`[External ZIP Validation] Checking external API for ZIP code ${zipCode} with city ${city}`);
+      
+      // Determine country code from ZIP code format
+      const countryCode = zipCode.length === 4 ? 'AT' : 'DE';
+      
+      // Determine which API endpoint to use based on the country code
+      let url;
+      if (countryCode === 'AT') {
+        // For Austria, the correct endpoint format is /at/Localities?postalCode=XXXX
+        url = `${this.API_BASE_URL}/at/Localities?postalCode=${zipCode}`;
+      } else {
+        // For Germany, the correct endpoint format is /de/Localities?postalCode=XXXXX
+        url = `${this.API_BASE_URL}/de/Localities?postalCode=${zipCode}`;
+      }
+      
+      try {
+        console.log(`[External ZIP Validation] Querying URL: ${url}`);
+        const response = await axios.get<OpenPLZPlace[]>(url);
+        
+        // If we get a successful response with data, the ZIP code is valid
+        if (response.data && response.data.length > 0) {
+          // Process all places returned by the API
+          const places = response.data;
+          console.log(`[External ZIP Validation] Found ${places.length} localities for ZIP code ${zipCode}`);
+          
+          // Extract city names and state from all places
+          const apiCities: string[] = [];
+          let state = '';
+          
+          for (const place of places) {
+            const cityName = place.name || '';
+            if (cityName && !apiCities.includes(cityName)) {
+              apiCities.push(cityName);
+            }
+            
+            // Use the state from the first place (should be the same for all)
+            if (!state && place.federalProvince?.name) {
+              state = place.federalProvince.name;
+            } else if (!state && place.district?.name) {
+              state = place.district.name;
+            }
+          }
+          
+          console.log(`[External ZIP Validation] API returned cities for ${zipCode}: ${apiCities.join(', ')}`);
+          
+          // Combine with cities from internal database to get a complete list
+          const allPossibleCities = [...new Set([...internalCities, ...apiCities])];
+          
+          // Normalize all possible cities
+          const normalizedPossibleCities = allPossibleCities.map(c => this.normalizeCity(c));
+          
+          // Check if the extracted city exactly matches any of the possible cities
+          const exactMatchIndex = normalizedPossibleCities.findIndex(c => c === normalizedCity);
+          if (exactMatchIndex !== -1) {
+            // Perfect match with one of the possible cities
+            const matchedCity = allPossibleCities[exactMatchIndex];
+            
+            // If this is a new city for this ZIP code, add it to our database
+            if (!internalCities.includes(matchedCity)) {
+              console.log(`[External ZIP Validation] Adding new city ${matchedCity} for ZIP code ${zipCode} to database`);
+              await this.cacheZipCodeResult(
+                zipCode, 
+                matchedCity, 
+                state || null, 
+                countryCode,
+                'address-extraction'
+              );
+            }
+            
+            return {
+              isValid: true,
+              confidenceAdjustment: 0.2,
+              country: countryCode === 'DE' ? 'Germany' : 'Austria',
+              suggestedCity: matchedCity,
+              allPossibleCities: allPossibleCities,
+              originalCity: city,
+              mismatch: false
+            };
+          }
+          
+          // Check for partial matches with any of the possible cities
+          for (let i = 0; i < normalizedPossibleCities.length; i++) {
+            const possibleCity = normalizedPossibleCities[i];
+            if (normalizedCity.includes(possibleCity) || possibleCity.includes(normalizedCity)) {
+              // Partial match with one of the possible cities - flag as a mismatch but still valid
+              return {
+                isValid: true,
+                suggestedCity: allPossibleCities[i],
+                allPossibleCities: allPossibleCities,
+                originalCity: city,
+                mismatch: true,
+                confidenceAdjustment: 0.1,
+                country: countryCode === 'DE' ? 'Germany' : 'Austria'
+              };
+            }
+          }
+          
+          // No match with any of the possible cities - flag as a mismatch and not valid
+          // But still return all possible cities for the ZIP code
+          return {
+            isValid: false,
+            suggestedCity: allPossibleCities[0], // Suggest the first city as default
+            allPossibleCities: allPossibleCities,
+            originalCity: city,
+            mismatch: true,
+            confidenceAdjustment: -0.1,
+            country: countryCode === 'DE' ? 'Germany' : 'Austria'
+          };
+        } else {
+          // If the API returns no results, fall back to the internal database results
+          if (internalResults && internalResults.length > 0) {
+            return {
+              isValid: false,
+              suggestedCity: internalCities[0],
+              allPossibleCities: internalCities,
+              originalCity: city,
+              mismatch: true,
+              confidenceAdjustment: -0.1,
+              country: countryCode === 'DE' ? 'Germany' : 'Austria'
+            };
+          }
+          
+          // If we get here, the ZIP code is not valid according to the API
+          console.log(`[External ZIP Validation] No results found for ZIP code ${zipCode}`);
+          return { 
+            isValid: false, 
+            confidenceAdjustment: -0.2,
+            country: countryCode === 'DE' ? 'Germany' : 'Austria',
+            originalCity: city,
+            mismatch: true
+          };
+        }
+      } catch (error: any) {
+        // If we get a 404, it means the ZIP code doesn't exist in their database
+        if (error.response && error.response.status === 404) {
+          console.log(`[External ZIP Validation] ZIP code ${zipCode} not found in OpenPLZ API (404)`);
+          
+          // If we have internal results, use those
+          if (internalResults && internalResults.length > 0) {
+            return {
+              isValid: false,
+              suggestedCity: internalCities[0],
+              allPossibleCities: internalCities,
+              originalCity: city,
+              mismatch: true,
+              confidenceAdjustment: -0.1,
+              country: countryCode === 'DE' ? 'Germany' : 'Austria'
+            };
+          }
+          
+          return { 
+            isValid: false, 
+            confidenceAdjustment: -0.2,
+            country: countryCode === 'DE' ? 'Germany' : 'Austria',
+            originalCity: city,
+            mismatch: true
+          };
+        }
+        
+        // For other errors, log and return a neutral result
+        console.error(`[External ZIP Validation] API error for ${zipCode}:`, error.message);
+        
+        // If we have internal results, use those
+        if (internalResults && internalResults.length > 0) {
+          return {
+            isValid: false,
+            suggestedCity: internalCities[0],
+            allPossibleCities: internalCities,
+            originalCity: city,
+            mismatch: true,
+            confidenceAdjustment: -0.1,
+            country: countryCode === 'DE' ? 'Germany' : 'Austria'
+          };
+        }
+        
+        return { 
+          isValid: false, 
+          confidenceAdjustment: -0.1,
+          country: countryCode === 'DE' ? 'Germany' : 'Austria',
+          originalCity: city,
+          mismatch: true
+        };
+      }
     } catch (error) {
       console.error(`[External ZIP Validation] Error validating ZIP code ${zipCode} and city ${city}:`, error);
       return { 
@@ -217,26 +399,27 @@ export class ExternalZipValidationService {
   /**
    * Check if a ZIP code exists in our internal database
    * @param zipCode The ZIP code to check
-   * @returns The ZIP code entry if found, null otherwise
+   * @returns Array of ZIP code entries if found, empty array otherwise
    */
   private async checkInternalDatabase(zipCode: string): Promise<{
     zipCode: string;
     city: string;
     state: string | null;
     country: string;
-  } | null> {
+  }[] | null> {
     try {
-      const entry = await prisma.zipCode.findUnique({
+      // Use type assertion to avoid TypeScript error
+      const entries = await (prisma as any).zipCode.findMany({
         where: { zipCode }
       });
       
-      if (entry) {
-        return {
+      if (entries && entries.length > 0) {
+        return entries.map((entry: any) => ({
           zipCode: entry.zipCode,
           city: entry.city,
           state: entry.state,
           country: entry.country
-        };
+        }));
       }
       
       return null;
@@ -263,13 +446,14 @@ export class ExternalZipValidationService {
   ): Promise<void> {
     try {
       // Check if we already have this ZIP code in our database
-      const existingEntry = await prisma.zipCode.findUnique({
+      // Use type assertion to avoid TypeScript error
+      const existingEntry = await (prisma as any).zipCode.findUnique({
         where: { zipCode }
       });
       
       if (existingEntry) {
         // Update existing entry
-        await prisma.zipCode.update({
+        await (prisma as any).zipCode.update({
           where: { zipCode },
           data: {
             city,
@@ -283,7 +467,7 @@ export class ExternalZipValidationService {
         console.log(`[External ZIP Validation] Updated ZIP code ${zipCode} in database`);
       } else {
         // Create new entry
-        await prisma.zipCode.create({
+        await (prisma as any).zipCode.create({
           data: {
             zipCode,
             city,
