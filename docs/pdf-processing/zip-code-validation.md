@@ -437,16 +437,16 @@ Planned enhancements to the ZIP code validation system:
 
 ## Validation Response Format
 
-The validation service returns a structured response with the following fields:
+The ZIP code validation service returns a structured response with the following fields:
 
 ```typescript
 interface ZipValidationResult {
   isValid: boolean;
   suggestedCity?: string;
-  originalCity?: string;
   allPossibleCities?: string[];
-  mismatch?: boolean;
   country?: string;
+  mismatch?: boolean;
+  originalCity?: string;
 }
 ```
 
@@ -454,12 +454,33 @@ interface ZipValidationResult {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `isValid` | boolean | Whether the ZIP code and city combination is valid |
+| `isValid` | boolean | Whether the ZIP code is valid |
 | `suggestedCity` | string (optional) | The suggested city name from validation |
-| `originalCity` | string (optional) | The original city name provided for validation |
 | `allPossibleCities` | string[] (optional) | All possible cities for the given ZIP code |
+| `country` | string (optional) | The country code determined from the ZIP code format |
 | `mismatch` | boolean (optional) | Whether there is a mismatch between the provided city and the expected city |
-| `country` | string (optional) | The country code for the ZIP code (e.g., "DE", "AT") |
+| `originalCity` | string (optional) | The original city name provided for validation |
+
+## Confidence Scoring
+
+The ZIP code validation process contributes to the overall confidence score of the address extraction:
+
+```typescript
+// In the PDF processing service
+if (zipValidationResult.isValid) {
+  // Add to confidence score for successful ZIP/city validation
+  extractedAddress.confidence += 0.4;
+}
+```
+
+The confidence scoring approach:
+
+1. Starts with a base score of 0
+2. Adds 0.4 for successful ZIP/city validation
+3. Adds 0.6 for successful street validation
+4. Results in a maximum score of 1.0 for fully validated addresses
+
+This scoring system provides a clear indication of address quality and reliability.
 
 ## Special Handling for Austrian Addresses
 

@@ -62,24 +62,33 @@ Street names are normalized to improve matching accuracy:
 
 ```typescript
 normalizeStreet(street: string): string {
-  return street
+  let normalizedStreet = street
     .trim()
-    .toLowerCase()
-    // Replace common street suffix variations
-    .replace(/straße$/i, 'str')
-    .replace(/strasse$/i, 'str')
-    .replace(/gasse$/i, 'g')
-    .replace(/weg$/i, 'w')
-    .replace(/allee$/i, 'a')
-    .replace(/platz$/i, 'pl')
-    // Remove special characters
+    .toLowerCase();
+    
+  // Handle hyphenated names by replacing with spaces for better matching
+  normalizedStreet = normalizedStreet.replace(/-/g, ' ');
+  
+  // Apply all suffix pattern replacements
+  for (const pattern of this.STREET_SUFFIX_PATTERNS) {
+    normalizedStreet = normalizedStreet.replace(pattern.pattern, pattern.replacement);
+  }
+  
+  // Remove special characters
+  normalizedStreet = normalizedStreet
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     // Replace umlauts
     .replace(/ä/g, 'a')
     .replace(/ö/g, 'o')
     .replace(/ü/g, 'u')
-    .replace(/ß/g, 'ss');
+    .replace(/ß/g, 'ss')
+    // Remove extra spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  console.log(`[Street Validation] Deep normalization: "${street}" -> "${normalizedStreet}"`);
+  return normalizedStreet;
 }
 ```
 
@@ -89,6 +98,33 @@ Normalization handles:
 2. Special characters and accents
 3. Umlauts and other language-specific characters
 4. Case differences
+5. Hyphenated names (converted to spaces for better matching)
+
+## Street Suffix Patterns
+
+The system uses configurable patterns to normalize street suffixes:
+
+```typescript
+private readonly STREET_SUFFIX_PATTERNS = [
+  { pattern: /straße$/i, replacement: 'str' },
+  { pattern: /strasse$/i, replacement: 'str' },
+  { pattern: /str\.?$/i, replacement: 'str' },
+  { pattern: /gasse$/i, replacement: 'g' },
+  { pattern: /g\.?$/i, replacement: 'g' },
+  { pattern: /weg$/i, replacement: 'w' },
+  { pattern: /w\.?$/i, replacement: 'w' },
+  { pattern: /allee$/i, replacement: 'a' },
+  { pattern: /a\.?$/i, replacement: 'a' },
+  { pattern: /platz$/i, replacement: 'pl' },
+  { pattern: /pl\.?$/i, replacement: 'pl' },
+  { pattern: /ring$/i, replacement: 'r' },
+  { pattern: /r\.?$/i, replacement: 'r' },
+  { pattern: /damm$/i, replacement: 'd' },
+  { pattern: /d\.?$/i, replacement: 'd' }
+];
+```
+
+These patterns are used during normalization to standardize street name suffixes, improving matching accuracy.
 
 ## Street Suffix Handling for API Calls
 
@@ -129,6 +165,30 @@ For a street like "Aldegreverstraße 25":
 3. If a match is found using the base name, it logs this success
 4. The system can then map the API result back to the original street name format
 
+## Enhanced Logging
+
+The system includes detailed logging to track the street validation process:
+
+```typescript
+// Log which variation is being tried
+console.log(`[Street Validation] Querying URL with variation "${variation}": ${apiUrl}`);
+
+// Log the results from the API
+console.log(`[Street Validation] API returned streets for variation "${variation}": ${apiStreets.join(', ')}`);
+
+// Log when a match is found using the base street name
+if (baseStreetName && variation === baseStreetName) {
+  console.log(`[Street Validation] Successfully matched using base street name without suffix: "${baseStreetName}" for "${streetName}"`);
+}
+```
+
+This logging helps with:
+
+1. Debugging validation issues
+2. Understanding which variations were successful
+3. Tracking API performance
+4. Identifying patterns for future optimization
+
 ## Validation Response Format
 
 The street validation service returns a structured response with the following fields:
@@ -152,6 +212,27 @@ interface StreetValidationResult {
 | `originalStreet` | string (optional) | The original street name provided for validation |
 | `allPossibleStreets` | string[] (optional) | All possible streets for the given ZIP code and city |
 | `mismatch` | boolean (optional) | Whether there is a mismatch between the provided street and the expected street |
+
+## Confidence Scoring
+
+The street validation process contributes to the overall confidence score of the address extraction:
+
+```typescript
+// In the PDF processing service
+if (streetValidationResult.isValid) {
+  // Add to confidence score for successful street validation
+  extractedAddress.confidence += 0.6;
+}
+```
+
+The confidence scoring approach:
+
+1. Starts with a base score of 0
+2. Adds 0.4 for successful ZIP/city validation
+3. Adds 0.6 for successful street validation
+4. Results in a maximum score of 1.0 for fully validated addresses
+
+This scoring system provides a clear indication of address quality and reliability.
 
 ## Validation Process
 

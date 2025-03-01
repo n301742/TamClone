@@ -25,6 +25,18 @@ interface OpenPLZPlace {
 }
 
 /**
+ * Interface for the result of external ZIP code validation
+ */
+interface ExternalZipValidationResult {
+  isValid: boolean;
+  suggestedCity?: string;
+  originalCity?: string;
+  mismatch?: boolean;
+  country?: string;
+  allPossibleCities?: string[];
+}
+
+/**
  * Service for validating ZIP codes using external APIs and caching results
  */
 export class ExternalZipValidationService {
@@ -161,16 +173,13 @@ export class ExternalZipValidationService {
    * @param city The city to match against
    * @returns Promise with validation result
    */
-  public async validateZipCodeCity(zipCode: string, city: string): Promise<{
-    isValid: boolean;
-    suggestedCity?: string;
-    allPossibleCities?: string[]; // New field to return all possible cities
-    confidenceAdjustment: number;
-    country?: string;
-    mismatch?: boolean;  // Flag to indicate a mismatch between ZIP and city
-    originalCity?: string; // Keep track of the original city
-  }> {
+  public async validateZipCodeCity(zipCode: string, city: string): Promise<ExternalZipValidationResult> {
     try {
+      // If no ZIP code provided, return invalid
+      if (!zipCode) {
+        return { isValid: false };
+      }
+
       // Normalize the city name for comparison
       const normalizedCity = this.normalizeCityForComparison(city);
       
@@ -190,11 +199,10 @@ export class ExternalZipValidationService {
           internalMatch = true;
           return {
             isValid: true,
-            confidenceAdjustment: 0.2,
-            country: zipCode.length === 4 ? 'Austria' : 'Germany',
             suggestedCity: internalCities[exactMatchIndex],
             allPossibleCities: internalCities,
             originalCity: city,
+            country: zipCode.length === 4 ? 'Austria' : 'Germany',
             mismatch: false
           };
         }
@@ -273,11 +281,10 @@ export class ExternalZipValidationService {
             
             return {
               isValid: true,
-              confidenceAdjustment: 0.2,
-              country: countryCode === 'DE' ? 'Germany' : 'Austria',
               suggestedCity: matchedCity,
               allPossibleCities: allPossibleCities,
               originalCity: city,
+              country: countryCode === 'DE' ? 'Germany' : 'Austria',
               mismatch: false
             };
           }
@@ -292,9 +299,8 @@ export class ExternalZipValidationService {
                 suggestedCity: allPossibleCities[i],
                 allPossibleCities: allPossibleCities,
                 originalCity: city,
-                mismatch: true,
-                confidenceAdjustment: 0.1,
-                country: countryCode === 'DE' ? 'Germany' : 'Austria'
+                country: countryCode === 'DE' ? 'Germany' : 'Austria',
+                mismatch: true
               };
             }
           }
@@ -306,9 +312,8 @@ export class ExternalZipValidationService {
             suggestedCity: allPossibleCities[0], // Suggest the first city as default
             allPossibleCities: allPossibleCities,
             originalCity: city,
-            mismatch: true,
-            confidenceAdjustment: -0.1,
-            country: countryCode === 'DE' ? 'Germany' : 'Austria'
+            country: countryCode === 'DE' ? 'Germany' : 'Austria',
+            mismatch: true
           };
         } else {
           // If the API returns no results, fall back to the internal database results
@@ -318,9 +323,8 @@ export class ExternalZipValidationService {
               suggestedCity: internalCities[0],
               allPossibleCities: internalCities,
               originalCity: city,
-              mismatch: true,
-              confidenceAdjustment: -0.1,
-              country: countryCode === 'DE' ? 'Germany' : 'Austria'
+              country: countryCode === 'DE' ? 'Germany' : 'Austria',
+              mismatch: true
             };
           }
           
@@ -328,7 +332,6 @@ export class ExternalZipValidationService {
           console.log(`[External ZIP Validation] No results found for ZIP code ${zipCode}`);
           return { 
             isValid: false, 
-            confidenceAdjustment: -0.2,
             country: countryCode === 'DE' ? 'Germany' : 'Austria',
             originalCity: city,
             mismatch: true
@@ -346,15 +349,13 @@ export class ExternalZipValidationService {
               suggestedCity: internalCities[0],
               allPossibleCities: internalCities,
               originalCity: city,
-              mismatch: true,
-              confidenceAdjustment: -0.1,
-              country: countryCode === 'DE' ? 'Germany' : 'Austria'
+              country: countryCode === 'DE' ? 'Germany' : 'Austria',
+              mismatch: true
             };
           }
           
           return { 
             isValid: false, 
-            confidenceAdjustment: -0.2,
             country: countryCode === 'DE' ? 'Germany' : 'Austria',
             originalCity: city,
             mismatch: true
@@ -371,15 +372,13 @@ export class ExternalZipValidationService {
             suggestedCity: internalCities[0],
             allPossibleCities: internalCities,
             originalCity: city,
-            mismatch: true,
-            confidenceAdjustment: -0.1,
-            country: countryCode === 'DE' ? 'Germany' : 'Austria'
+            country: countryCode === 'DE' ? 'Germany' : 'Austria',
+            mismatch: true
           };
         }
         
         return { 
           isValid: false, 
-          confidenceAdjustment: -0.1,
           country: countryCode === 'DE' ? 'Germany' : 'Austria',
           originalCity: city,
           mismatch: true
@@ -389,7 +388,7 @@ export class ExternalZipValidationService {
       console.error(`[External ZIP Validation] Error validating ZIP code ${zipCode} and city ${city}:`, error);
       return { 
         isValid: false, 
-        confidenceAdjustment: -0.1,
+        country: zipCode.length === 4 ? 'Austria' : 'Germany',
         originalCity: city,
         mismatch: true
       };

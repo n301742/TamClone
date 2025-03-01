@@ -114,25 +114,30 @@ export class ZipValidationService {
   }
 
   /**
-   * Validate if a ZIP code matches a city
+   * Validate a ZIP code and city combination
    * @param zipCode The ZIP code to validate
-   * @param city The city to match
-   * @returns Validation result with confidence adjustment
+   * @param city The city to validate
+   * @returns Validation result
    */
   public async validateZipCodeCity(zipCode: string, city: string): Promise<{
     isValid: boolean;
-    confidenceAdjustment: number;
     suggestedCity?: string;
     allPossibleCities?: string[];
     country?: 'DE' | 'AT';
     mismatch?: boolean;
     originalCity?: string;
   }> {
-    // If either ZIP code or city is missing, we can't validate
-    if (!zipCode || !city) {
-      return { isValid: false, confidenceAdjustment: 0 };
+    // If no ZIP code provided, return invalid
+    if (!zipCode) {
+      return { isValid: false };
     }
-    
+
+    // If ZIP code is not in the correct format, return invalid
+    if (!this.isValidZipCodeFormat(zipCode)) {
+      return { isValid: false };
+    }
+
+    // Check if the ZIP code is in our database
     try {
       // Ensure the service is initialized
       if (!this.isInitialized) {
@@ -147,7 +152,7 @@ export class ZipValidationService {
       
       if (!country) {
         console.log(`Invalid ZIP code format: ${zipCode}`);
-        return { isValid: false, confidenceAdjustment: -0.1 };
+        return { isValid: false };
       }
       
       // Query the database for all cities with this ZIP code
@@ -160,7 +165,7 @@ export class ZipValidationService {
       
       if (!entries || entries.length === 0) {
         // ZIP code not found in database
-        return { isValid: false, confidenceAdjustment: -0.1 };
+        return { isValid: false };
       }
       
       // Get all possible cities for this ZIP code
@@ -170,92 +175,121 @@ export class ZipValidationService {
       const normalizedExtractedCity = this.normalizeCityForComparison(city);
       
       // Check for exact matches
+      let exactMatch: string | undefined = undefined;
       for (const entry of entries) {
         const normalizedDbCity = this.normalizeCityForComparison(entry.city);
         
         if (normalizedExtractedCity === normalizedDbCity) {
           // Perfect match
-          return { 
-            isValid: true, 
-            confidenceAdjustment: 0.1,
-            country,
-            suggestedCity: entry.city,
-            allPossibleCities
-          };
+          exactMatch = entry.city;
+          break;
         }
       }
       
       // Check for major city matches (like Wien vs Wien, Josefstadt)
+      let majorCityMatch: string | undefined = undefined;
       for (const entry of entries) {
         if (this.isMajorCityMatch(city, entry.city)) {
           // Major city match - consider it valid without penalty
-          return { 
-            isValid: true, 
-            confidenceAdjustment: 0.1, // Same as exact match
-            country,
-            suggestedCity: entry.city,
-            allPossibleCities,
-            // Still mark as mismatch for informational purposes, but don't penalize
-            mismatch: true,
-            originalCity: city
-          };
+          majorCityMatch = entry.city;
+          break;
         }
       }
       
       // Check for partial matches
+      let fuzzyMatch: string | undefined = undefined;
       for (const entry of entries) {
         const normalizedDbCity = this.normalizeCityForComparison(entry.city);
         
         if (normalizedDbCity.includes(normalizedExtractedCity) || 
             normalizedExtractedCity.includes(normalizedDbCity)) {
           // Partial match - flag as a mismatch but still valid
-          return { 
-            isValid: true, 
-            confidenceAdjustment: 0.05,
-            suggestedCity: entry.city,
-            allPossibleCities,
-            country,
-            mismatch: true,
-            originalCity: city
-          };
+          fuzzyMatch = entry.city;
+          break;
         }
       }
       
       // Check for city name variations
+      let cityVariation: string | undefined = undefined;
       for (const entry of entries) {
         const normalizedDbCity = this.normalizeCityForComparison(entry.city);
         
         if (this.checkCityVariations(normalizedExtractedCity, normalizedDbCity)) {
-          return {
-            isValid: true,
-            confidenceAdjustment: 0.05,
-            suggestedCity: entry.city,
-            allPossibleCities,
-            country,
-            mismatch: true,
-            originalCity: city
-          };
+          cityVariation = entry.city;
+          break;
         }
       }
       
-      // No match - flag as a mismatch and not valid
-      return { 
-        isValid: false, 
-        confidenceAdjustment: -0.2,
-        suggestedCity: entries[0].city,
-        allPossibleCities,
-        country,
+      // If exact match found, return valid with high confidence
+      if (exactMatch) {
+        return {
+          isValid: true,
+          suggestedCity: exactMatch,
+          allPossibleCities: allPossibleCities,
+          country: country,
+          mismatch: false,
+          originalCity: city
+        };
+      }
+      
+      // If city is not provided, return valid with suggested city
+      if (!city) {
+        return {
+          isValid: true,
+          suggestedCity: allPossibleCities[0],
+          allPossibleCities: allPossibleCities,
+          country: country
+        };
+      }
+      
+      // If major city match found, return valid with medium confidence
+      if (majorCityMatch) {
+        return {
+          isValid: true,
+          suggestedCity: majorCityMatch,
+          allPossibleCities: allPossibleCities,
+          country: country,
+          mismatch: true,
+          originalCity: city
+        };
+      }
+      
+      // If fuzzy match found, return valid with medium confidence
+      if (fuzzyMatch) {
+        return {
+          isValid: true,
+          suggestedCity: fuzzyMatch,
+          allPossibleCities: allPossibleCities,
+          country: country,
+          mismatch: true,
+          originalCity: city
+        };
+      }
+      
+      // If city variation found, return valid with medium confidence
+      if (cityVariation) {
+        return {
+          isValid: true,
+          suggestedCity: cityVariation,
+          allPossibleCities: allPossibleCities,
+          country: country,
+          mismatch: true,
+          originalCity: city
+        };
+      }
+      
+      // No match found, return invalid
+      return {
+        isValid: false,
+        suggestedCity: allPossibleCities[0],
+        allPossibleCities: allPossibleCities,
+        country: country,
         mismatch: true,
         originalCity: city
       };
     } catch (error) {
-      console.error(`Error validating ZIP code ${zipCode} and city ${city}:`, error);
-      return { 
-        isValid: false, 
-        confidenceAdjustment: -0.1,
-        originalCity: city,
-        mismatch: true
-      };
+      console.error('Error validating ZIP code and city:', error);
+      return { isValid: false };
     }
   }
 
@@ -405,6 +439,29 @@ export class ZipValidationService {
     }
     
     return matrix[b.length][a.length];
+  }
+
+  /**
+   * Check if a ZIP code is in the correct format
+   * @param zipCode The ZIP code to check
+   * @returns True if the ZIP code is valid, false otherwise
+   */
+  private isValidZipCodeFormat(zipCode: string): boolean {
+    // Clean the ZIP code (remove spaces, etc.)
+    const cleanZip = zipCode.trim().replace(/\s+/g, '');
+    
+    // German ZIP codes have 5 digits
+    if (/^\d{5}$/.test(cleanZip)) {
+      return true;
+    }
+    
+    // Austrian ZIP codes have 4 digits
+    if (/^\d{4}$/.test(cleanZip)) {
+      return true;
+    }
+    
+    // Unknown format
+    return false;
   }
 }
 

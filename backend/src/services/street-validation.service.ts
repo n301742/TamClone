@@ -18,7 +18,6 @@ interface StreetValidationResult {
   isValid: boolean;
   suggestedStreet?: string;
   allPossibleStreets?: string[];
-  confidenceAdjustment: number;
   mismatch?: boolean;
   originalStreet?: string;
 }
@@ -101,7 +100,6 @@ export class StreetValidationService {
           console.log(`[Street Validation] Exact match found: "${streetName}" matches "${matchingStreet}"`);
           return {
             isValid: true,
-            confidenceAdjustment: 0.2,
             suggestedStreet: matchingStreet,
             allPossibleStreets: internalStreets,
             originalStreet: street,
@@ -119,7 +117,6 @@ export class StreetValidationService {
             console.log(`[Street Validation] Alternative normalization match found: "${streetName}" matches "${altMatch}" via "${altNorm}"`);
             return {
               isValid: true,
-              confidenceAdjustment: 0.15, // Slightly lower confidence for alternative matches
               suggestedStreet: altMatch,
               allPossibleStreets: internalStreets,
               originalStreet: street,
@@ -156,7 +153,6 @@ export class StreetValidationService {
           console.log(`[Street Validation] Using fuzzy match: "${streetName}" -> "${fuzzyMatches[0]}"`);
           return {
             isValid: true,
-            confidenceAdjustment: 0.1, // Lower confidence for fuzzy matches
             suggestedStreet: fuzzyMatches[0],
             allPossibleStreets: fuzzyMatches,
             originalStreet: street,
@@ -260,7 +256,6 @@ export class StreetValidationService {
           console.log(`[Street Validation] Austrian address - being more lenient with validation`);
           return {
             isValid: true,
-            confidenceAdjustment: 0.05, // Small positive adjustment for Austrian addresses
             suggestedStreet: apiStreets[0],
             allPossibleStreets: apiStreets,
             originalStreet: street,
@@ -270,7 +265,6 @@ export class StreetValidationService {
         
         return {
           isValid: true,
-          confidenceAdjustment: exactMatch ? 0.1 : (altMatch ? 0.08 : (fuzzyMatch ? 0.05 : 0)),
           suggestedStreet: exactMatch || altMatch || fuzzyMatch || apiStreets[0],
           allPossibleStreets: apiStreets,
           originalStreet: street,
@@ -283,7 +277,8 @@ export class StreetValidationService {
           console.log(`[Street Validation] No results for hyphenated street "${streetName}" - being lenient`);
           return {
             isValid: true, // Consider valid for hyphenated streets
-            confidenceAdjustment: -0.05, // Small penalty
+            suggestedStreet: streetName,
+            allPossibleStreets: [streetName],
             originalStreet: street,
             mismatch: true
           };
@@ -294,7 +289,8 @@ export class StreetValidationService {
           console.log(`[Street Validation] No results for Austrian street "${streetName}" - being lenient`);
           return {
             isValid: true, // Consider valid for Austrian addresses
-            confidenceAdjustment: -0.1, // Small penalty but not as severe
+            suggestedStreet: streetName,
+            allPossibleStreets: [streetName],
             originalStreet: street,
             mismatch: true
           };
@@ -303,7 +299,8 @@ export class StreetValidationService {
         console.log(`[Street Validation] No results found for street "${streetName}" in ${postalCode} ${city}`);
         return {
           isValid: false,
-          confidenceAdjustment: -0.2,
+          suggestedStreet: streetName,
+          allPossibleStreets: [streetName],
           originalStreet: street,
           mismatch: true
         };
@@ -312,7 +309,8 @@ export class StreetValidationService {
       console.error(`[Street Validation] Error validating street "${street}" in ${postalCode} ${city}:`, error);
       return { 
         isValid: false, 
-        confidenceAdjustment: -0.1,
+        suggestedStreet: street,
+        allPossibleStreets: [street],
         originalStreet: street,
         mismatch: true
       };

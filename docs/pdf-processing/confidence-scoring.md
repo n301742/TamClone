@@ -20,23 +20,60 @@ The confidence score starts at a baseline value of 0 and is adjusted based on va
 let confidence = 0.0;
 
 // Add to confidence based on successful validations
-if (zipValidationDetails && zipValidationDetails.matchFound) {
+if (zipValidationResult.isValid) {
   // ZIP/city validation passed
   confidence += 0.4;
-  
-  // Only check street validation if ZIP/city validation passed
-  if (streetValidationDetails && streetValidationDetails.matchFound) {
-    confidence += 0.2;
-  }
 }
 
-// Add a base confidence of 0.4 if we have at least some address data
-if (confidence === 0 && (name || street || postalCode || city)) {
-  confidence = 0.4;
+// Add to confidence for successful street validation
+if (streetValidationResult.isValid) {
+  confidence += 0.6;
 }
 
-// Ensure the final score is between 0 and 1
-confidence = Math.max(0, Math.min(1, confidence));
+// Final confidence score is between 0 and 1
+// 0.0: No validations passed
+// 0.4: Only ZIP/city validation passed
+// 1.0: Both ZIP/city and street validations passed
+```
+
+### Confidence Score Interpretation
+
+| Score Range | Interpretation | Recommended Action |
+|-------------|----------------|-------------------|
+| 0.0 - 0.3   | Very low confidence | Manual review required |
+| 0.4 - 0.5   | Low confidence | Manual review recommended |
+| 0.6 - 0.7   | Moderate confidence | Automated processing with caution |
+| 0.8 - 1.0   | High confidence | Automated processing |
+
+## Validation Components
+
+The confidence score is based on two main validation components:
+
+1. **ZIP/City Validation (0.4 points)**
+   - Verifies that the postal code exists
+   - Confirms the city matches the postal code
+   - Checks for formatting issues
+
+2. **Street Validation (0.6 points)**
+   - Verifies the street exists in the given postal code and city
+   - Checks for spelling and formatting issues
+   - Validates against external databases
+
+## Implementation
+
+The confidence scoring is implemented in the PDF processing service:
+
+```typescript
+// In the PDF processing service
+if (zipValidationResult.isValid) {
+  writeLog(`[PDF Processing] Adding confidence for successful ZIP/city validation: ${0.4}`);
+  extractedAddress.confidence += 0.4;
+}
+
+if (streetValidationResult.isValid) {
+  writeLog(`[PDF Processing] Adding confidence for successful street validation: ${0.6}`);
+  extractedAddress.confidence += 0.6;
+}
 ```
 
 ## Factors Affecting Confidence
@@ -56,7 +93,7 @@ The results of street validation also impact confidence:
 
 | Validation Result | Impact on Confidence |
 |-------------------|---------------------|
-| Street validation passes (only checked if ZIP/city passes) | +0.2 |
+| Street validation passes (only checked if ZIP/city passes) | +0.6 |
 | Street validation fails | No addition |
 
 ### 3. Base Confidence for Partial Data
