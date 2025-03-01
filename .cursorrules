@@ -37,6 +37,7 @@
 - Implement proper accessibility with ARIA roles and attributes
 - Use the new Pass Through (PT) API for customizing components
 - Leverage the Fluid component or fluid property for responsive layouts
+- Never hardcode any special cases always find a generic solution
 - Use the new Tailwind CSS presets for PrimeVue v4 if using Tailwind
 
 # BACKEND TECHNOLOGY STACK

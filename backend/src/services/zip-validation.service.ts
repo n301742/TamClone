@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { prisma } from '../app';
 
 /**
  * Interface for ZIP code database entry
@@ -13,10 +12,9 @@ interface ZipCodeEntry {
 
 /**
  * Service for validating ZIP codes and matching them to cities
+ * Uses the database for validation instead of in-memory sample data
  */
 export class ZipValidationService {
-  private germanZipCodes: Map<string, ZipCodeEntry> = new Map();
-  private austrianZipCodes: Map<string, ZipCodeEntry> = new Map();
   private isInitialized: boolean = false;
 
   constructor() {
@@ -24,7 +22,7 @@ export class ZipValidationService {
   }
 
   /**
-   * Initialize the ZIP code database
+   * Initialize the ZIP code validation service
    */
   private async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -32,86 +30,14 @@ export class ZipValidationService {
     }
 
     try {
-      // Load German ZIP codes
-      await this.loadGermanZipCodes();
-      
-      // Load Austrian ZIP codes
-      await this.loadAustrianZipCodes();
-      
+      // Check if we have any ZIP codes in the database
+      const count = await prisma.zipCode.count();
+      console.log(`ZIP code validation service initialized with ${count} entries in database`);
       this.isInitialized = true;
-      console.log('ZIP code validation service initialized successfully');
     } catch (error) {
       console.error('Failed to initialize ZIP code validation service:', error);
-      // Continue without ZIP validation if data can't be loaded
+      // Continue without ZIP validation if database can't be accessed
       this.isInitialized = true;
-    }
-  }
-
-  /**
-   * Load German ZIP codes from data file
-   */
-  private async loadGermanZipCodes(): Promise<void> {
-    try {
-      // In a real implementation, this would load from a data file or API
-      // For now, we'll add some sample data for testing
-      
-      // Sample German ZIP codes (just a few for demonstration)
-      const sampleGermanZipCodes: ZipCodeEntry[] = [
-        { zipCode: '10115', city: 'Berlin', state: 'Berlin', country: 'DE' },
-        { zipCode: '10117', city: 'Berlin', state: 'Berlin', country: 'DE' },
-        { zipCode: '20095', city: 'Hamburg', state: 'Hamburg', country: 'DE' },
-        { zipCode: '50667', city: 'Köln', state: 'Nordrhein-Westfalen', country: 'DE' },
-        { zipCode: '60306', city: 'Frankfurt am Main', state: 'Hessen', country: 'DE' },
-        { zipCode: '80331', city: 'München', state: 'Bayern', country: 'DE' },
-        { zipCode: '70173', city: 'Stuttgart', state: 'Baden-Württemberg', country: 'DE' },
-        { zipCode: '04109', city: 'Leipzig', state: 'Sachsen', country: 'DE' },
-        { zipCode: '01067', city: 'Dresden', state: 'Sachsen', country: 'DE' },
-        { zipCode: '30159', city: 'Hannover', state: 'Niedersachsen', country: 'DE' },
-      ];
-      
-      // Add to map
-      for (const entry of sampleGermanZipCodes) {
-        this.germanZipCodes.set(entry.zipCode, entry);
-      }
-      
-      console.log(`Loaded ${this.germanZipCodes.size} German ZIP codes`);
-    } catch (error) {
-      console.error('Error loading German ZIP codes:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Load Austrian ZIP codes from data file
-   */
-  private async loadAustrianZipCodes(): Promise<void> {
-    try {
-      // In a real implementation, this would load from a data file or API
-      // For now, we'll add some sample data for testing
-      
-      // Sample Austrian ZIP codes (just a few for demonstration)
-      const sampleAustrianZipCodes: ZipCodeEntry[] = [
-        { zipCode: '1010', city: 'Wien', state: 'Wien', country: 'AT' },
-        { zipCode: '1020', city: 'Wien', state: 'Wien', country: 'AT' },
-        { zipCode: '4020', city: 'Linz', state: 'Oberösterreich', country: 'AT' },
-        { zipCode: '5020', city: 'Salzburg', state: 'Salzburg', country: 'AT' },
-        { zipCode: '6020', city: 'Innsbruck', state: 'Tirol', country: 'AT' },
-        { zipCode: '8010', city: 'Graz', state: 'Steiermark', country: 'AT' },
-        { zipCode: '9020', city: 'Klagenfurt', state: 'Kärnten', country: 'AT' },
-        { zipCode: '3100', city: 'St. Pölten', state: 'Niederösterreich', country: 'AT' },
-        { zipCode: '7000', city: 'Eisenstadt', state: 'Burgenland', country: 'AT' },
-        { zipCode: '6900', city: 'Bregenz', state: 'Vorarlberg', country: 'AT' },
-      ];
-      
-      // Add to map
-      for (const entry of sampleAustrianZipCodes) {
-        this.austrianZipCodes.set(entry.zipCode, entry);
-      }
-      
-      console.log(`Loaded ${this.austrianZipCodes.size} Austrian ZIP codes`);
-    } catch (error) {
-      console.error('Error loading Austrian ZIP codes:', error);
-      throw error;
     }
   }
 
@@ -160,14 +86,31 @@ export class ZipValidationService {
       return null;
     }
     
-    // Check the appropriate database
-    if (country === 'DE') {
-      return this.germanZipCodes.get(cleanZip) || null;
-    } else if (country === 'AT') {
-      return this.austrianZipCodes.get(cleanZip) || null;
+    try {
+      // Query the database for this ZIP code
+      const entries = await prisma.zipCode.findMany({
+        where: { 
+          zipCode: cleanZip,
+          country
+        },
+        take: 1 // Just get the first entry for basic validation
+      });
+      
+      if (entries && entries.length > 0) {
+        // Return the first entry as the primary one
+        return {
+          zipCode: entries[0].zipCode,
+          city: entries[0].city,
+          state: entries[0].state || undefined,
+          country: entries[0].country as 'DE' | 'AT'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error(`Error querying database for ZIP code ${zipCode}:`, error);
+      return null;
     }
-    
-    return null;
   }
 
   /**
@@ -190,115 +133,278 @@ export class ZipValidationService {
       return { isValid: false, confidenceAdjustment: 0 };
     }
     
-    // Get the ZIP code entry
-    const zipEntry = await this.validateZipCode(zipCode);
-    
-    if (!zipEntry) {
-      // ZIP code not found in database
-      return { isValid: false, confidenceAdjustment: -0.1 };
-    }
-    
-    // Normalize city names for comparison
-    const normalizedExtractedCity = this.normalizeCity(city);
-    const normalizedExpectedCity = this.normalizeCity(zipEntry.city);
-    
-    // Compare extracted city with expected city
-    if (normalizedExtractedCity === normalizedExpectedCity) {
-      // Perfect match
+    try {
+      // Ensure the service is initialized
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+      
+      // Clean the ZIP code (remove spaces, etc.)
+      const cleanZip = zipCode.trim().replace(/\s+/g, '');
+      
+      // Determine the country
+      const country = this.getCountryFromZipCode(cleanZip);
+      
+      if (!country) {
+        console.log(`Invalid ZIP code format: ${zipCode}`);
+        return { isValid: false, confidenceAdjustment: -0.1 };
+      }
+      
+      // Query the database for all cities with this ZIP code
+      const entries = await prisma.zipCode.findMany({
+        where: { 
+          zipCode: cleanZip,
+          country
+        }
+      });
+      
+      if (!entries || entries.length === 0) {
+        // ZIP code not found in database
+        return { isValid: false, confidenceAdjustment: -0.1 };
+      }
+      
+      // Get all possible cities for this ZIP code
+      const allPossibleCities = entries.map(entry => entry.city);
+      
+      // Normalize city names for comparison
+      const normalizedExtractedCity = this.normalizeCityForComparison(city);
+      
+      // Check for exact matches
+      for (const entry of entries) {
+        const normalizedDbCity = this.normalizeCityForComparison(entry.city);
+        
+        if (normalizedExtractedCity === normalizedDbCity) {
+          // Perfect match
+          return { 
+            isValid: true, 
+            confidenceAdjustment: 0.1,
+            country,
+            suggestedCity: entry.city,
+            allPossibleCities
+          };
+        }
+      }
+      
+      // Check for major city matches (like Wien vs Wien, Josefstadt)
+      for (const entry of entries) {
+        if (this.isMajorCityMatch(city, entry.city)) {
+          // Major city match - consider it valid without penalty
+          return { 
+            isValid: true, 
+            confidenceAdjustment: 0.1, // Same as exact match
+            country,
+            suggestedCity: entry.city,
+            allPossibleCities,
+            // Still mark as mismatch for informational purposes, but don't penalize
+            mismatch: true,
+            originalCity: city
+          };
+        }
+      }
+      
+      // Check for partial matches
+      for (const entry of entries) {
+        const normalizedDbCity = this.normalizeCityForComparison(entry.city);
+        
+        if (normalizedDbCity.includes(normalizedExtractedCity) || 
+            normalizedExtractedCity.includes(normalizedDbCity)) {
+          // Partial match - flag as a mismatch but still valid
+          return { 
+            isValid: true, 
+            confidenceAdjustment: 0.05,
+            suggestedCity: entry.city,
+            allPossibleCities,
+            country,
+            mismatch: true,
+            originalCity: city
+          };
+        }
+      }
+      
+      // Check for city name variations
+      for (const entry of entries) {
+        const normalizedDbCity = this.normalizeCityForComparison(entry.city);
+        
+        if (this.checkCityVariations(normalizedExtractedCity, normalizedDbCity)) {
+          return {
+            isValid: true,
+            confidenceAdjustment: 0.05,
+            suggestedCity: entry.city,
+            allPossibleCities,
+            country,
+            mismatch: true,
+            originalCity: city
+          };
+        }
+      }
+      
+      // No match - flag as a mismatch and not valid
       return { 
-        isValid: true, 
-        confidenceAdjustment: 0.1,
-        country: zipEntry.country,
-        allPossibleCities: [zipEntry.city]
-      };
-    }
-    
-    // Check for partial matches or common variations
-    if (normalizedExpectedCity.includes(normalizedExtractedCity) || 
-        normalizedExtractedCity.includes(normalizedExpectedCity)) {
-      // Partial match - flag as a mismatch but still valid
-      return { 
-        isValid: true, 
-        confidenceAdjustment: 0.05,
-        suggestedCity: zipEntry.city,
-        allPossibleCities: [zipEntry.city],
-        country: zipEntry.country,
+        isValid: false, 
+        confidenceAdjustment: -0.2,
+        suggestedCity: entries[0].city,
+        allPossibleCities,
+        country,
         mismatch: true,
         originalCity: city
       };
-    }
-    
-    // Check for common city name variations (e.g., Frankfurt vs. Frankfurt am Main)
-    if (this.checkCityVariations(normalizedExtractedCity, normalizedExpectedCity)) {
-      return {
-        isValid: true,
-        confidenceAdjustment: 0.05,
-        suggestedCity: zipEntry.city,
-        allPossibleCities: [zipEntry.city],
-        country: zipEntry.country,
-        mismatch: true,
-        originalCity: city
+    } catch (error) {
+      console.error(`Error validating ZIP code ${zipCode} and city ${city}:`, error);
+      return { 
+        isValid: false, 
+        confidenceAdjustment: -0.1,
+        originalCity: city,
+        mismatch: true
       };
     }
-    
-    // No match - flag as a mismatch and not valid
-    return { 
-      isValid: false, 
-      confidenceAdjustment: -0.2,
-      suggestedCity: zipEntry.city,
-      allPossibleCities: [zipEntry.city],
-      country: zipEntry.country,
-      mismatch: true,
-      originalCity: city
-    };
   }
 
   /**
-   * Normalize a city name for comparison
-   * @param city The city name to normalize
-   * @returns Normalized city name
+   * Normalize city name for display purposes
+   * This preserves the original case but removes special characters
    */
   private normalizeCity(city: string): string {
     return city
-      .toLowerCase()
       .trim()
-      // Remove special characters
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      // Replace umlauts
-      .replace(/ä/g, 'a')
-      .replace(/ö/g, 'o')
-      .replace(/ü/g, 'u')
-      .replace(/ß/g, 'ss');
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .replace(/[äÄ]/g, (match) => match === 'ä' ? 'a' : 'A')
+      .replace(/[öÖ]/g, (match) => match === 'ö' ? 'o' : 'O')
+      .replace(/[üÜ]/g, (match) => match === 'ü' ? 'u' : 'U')
+      .replace(/[ß]/g, 'ss');
   }
 
   /**
-   * Check for common city name variations
-   * @param city1 First city name
-   * @param city2 Second city name
-   * @returns True if the cities are variations of each other
+   * Normalize city name for comparison purposes
+   * This converts to lowercase and removes spaces for case-insensitive comparison
    */
-  private checkCityVariations(city1: string, city2: string): boolean {
-    // Common variations for German cities
-    const variations: Record<string, string[]> = {
-      'frankfurt': ['frankfurt am main', 'frankfurt a.m.', 'frankfurt a. m.'],
-      'munchen': ['muenchen'],
-      'koln': ['cologne', 'koeln'],
-      'nurnberg': ['nuernberg', 'nuremberg'],
-      'dusseldorf': ['duesseldorf'],
-      'wien': ['vienna'],
-      'salzburg': ['salzburg city'],
-    };
+  private normalizeCityForComparison(city: string): string {
+    return this.normalizeCity(city).toLowerCase().replace(/\s+/g, '');
+  }
+
+  /**
+   * Special handling for major cities with districts
+   * @param extractedCity The city extracted from the address
+   * @param dbCity The city from the database
+   * @returns True if the cities should be considered a match
+   */
+  private isMajorCityMatch(extractedCity: string, dbCity: string): boolean {
+    // Handle Vienna/Wien special case
+    if (extractedCity.toLowerCase() === 'wien' && dbCity.toLowerCase().startsWith('wien,')) {
+      return true;
+    }
     
-    // Check if either city is a known variation of the other
-    for (const [base, vars] of Object.entries(variations)) {
-      if ((city1 === base && vars.includes(city2)) || 
-          (city2 === base && vars.includes(city1))) {
+    // Handle other major cities with districts
+    const majorCities = ['berlin', 'hamburg', 'munich', 'münchen', 'cologne', 'köln', 'frankfurt'];
+    
+    for (const city of majorCities) {
+      if (extractedCity.toLowerCase() === city && dbCity.toLowerCase().startsWith(city + ',')) {
         return true;
       }
     }
     
     return false;
+  }
+
+  /**
+   * Check if two city names might be variations of each other
+   * Uses string similarity and common patterns instead of hard-coded variations
+   * @param city1 First city name (normalized)
+   * @param city2 Second city name (normalized)
+   * @returns True if the cities are likely variations of each other
+   */
+  private checkCityVariations(city1: string, city2: string): boolean {
+    // If either string is empty, they can't be variations
+    if (!city1 || !city2) {
+      return false;
+    }
+    
+    // Check for exact match after normalization
+    if (city1 === city2) {
+      return true;
+    }
+    
+    // Check if one is a substring of the other
+    if (city1.includes(city2) || city2.includes(city1)) {
+      return true;
+    }
+    
+    // Check for common prefixes (e.g., "Frankfurt" vs "Frankfurt am Main")
+    // Get the shorter string length for comparison
+    const minLength = Math.min(city1.length, city2.length);
+    const prefixLength = Math.floor(minLength * 0.7); // Use 70% of the shorter string as prefix
+    
+    if (prefixLength >= 4) { // Only check if prefix is at least 4 chars
+      if (city1.substring(0, prefixLength) === city2.substring(0, prefixLength)) {
+        return true;
+      }
+    }
+    
+    // Check for common abbreviations and patterns
+    const patterns = [
+      { full: 'saint', abbr: 'st' },
+      { full: 'sankt', abbr: 'st' },
+      { full: 'am main', abbr: '' },
+      { full: 'an der', abbr: '' },
+      { full: 'a.m.', abbr: '' },
+      { full: 'a. m.', abbr: '' },
+    ];
+    
+    // Try replacing patterns in both directions
+    for (const pattern of patterns) {
+      const city1WithPattern = city1.replace(pattern.abbr, pattern.full);
+      const city1WithoutPattern = city1.replace(pattern.full, pattern.abbr);
+      const city2WithPattern = city2.replace(pattern.abbr, pattern.full);
+      const city2WithoutPattern = city2.replace(pattern.full, pattern.abbr);
+      
+      if (city1WithPattern === city2 || city1 === city2WithPattern ||
+          city1WithoutPattern === city2 || city1 === city2WithoutPattern) {
+        return true;
+      }
+    }
+    
+    // Calculate string similarity (Levenshtein distance)
+    const distance = this.levenshteinDistance(city1, city2);
+    const maxLength = Math.max(city1.length, city2.length);
+    const similarity = 1 - distance / maxLength;
+    
+    // If similarity is above threshold, consider them variations
+    return similarity > 0.8;
+  }
+  
+  /**
+   * Calculate Levenshtein distance between two strings
+   * @param a First string
+   * @param b Second string
+   * @returns The Levenshtein distance
+   */
+  private levenshteinDistance(a: string, b: string): number {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    
+    const matrix = [];
+    
+    // Initialize matrix
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    
+    // Fill matrix
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,      // deletion
+          matrix[i][j - 1] + 1,      // insertion
+          matrix[i - 1][j - 1] + cost // substitution
+        );
+      }
+    }
+    
+    return matrix[b.length][a.length];
   }
 }
 

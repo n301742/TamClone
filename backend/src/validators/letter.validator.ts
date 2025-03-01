@@ -23,6 +23,8 @@ export const createLetterSchema = z.object({
       },
       z.boolean().optional()
     ),
+    // Form type for address extraction (formA, formB, or din676)
+    formType: z.enum(['formA', 'formB', 'din676']).optional().default('formB'),
     // Optional metadata
     description: z.string().optional(),
     isExpress: z.preprocess(

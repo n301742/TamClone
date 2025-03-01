@@ -171,8 +171,8 @@ export class ExternalZipValidationService {
     originalCity?: string; // Keep track of the original city
   }> {
     try {
-      // Normalize the city name for better matching
-      const normalizedCity = this.normalizeCity(city);
+      // Normalize the city name for comparison
+      const normalizedCity = this.normalizeCityForComparison(city);
       
       // First, check if we have this ZIP code in our internal database
       const internalResults = await this.checkInternalDatabase(zipCode);
@@ -181,7 +181,7 @@ export class ExternalZipValidationService {
       // Check if the city matches any of the cities in our internal database
       let internalMatch = false;
       if (internalResults && internalResults.length > 0) {
-        const normalizedInternalCities = internalCities.map(c => this.normalizeCity(c));
+        const normalizedInternalCities = internalCities.map(c => this.normalizeCityForComparison(c));
         const exactMatchIndex = normalizedInternalCities.findIndex(c => c === normalizedCity);
         
         if (exactMatchIndex !== -1) {
@@ -250,8 +250,8 @@ export class ExternalZipValidationService {
           // Combine with cities from internal database to get a complete list
           const allPossibleCities = [...new Set([...internalCities, ...apiCities])];
           
-          // Normalize all possible cities
-          const normalizedPossibleCities = allPossibleCities.map(c => this.normalizeCity(c));
+          // Normalize possible cities for comparison
+          const normalizedPossibleCities = allPossibleCities.map(c => this.normalizeCityForComparison(c));
           
           // Check if the extracted city exactly matches any of the possible cities
           const exactMatchIndex = normalizedPossibleCities.findIndex(c => c === normalizedCity);
@@ -477,18 +477,25 @@ export class ExternalZipValidationService {
   }
   
   /**
-   * Normalize a city name for better matching
-   * @param city The city name to normalize
-   * @returns Normalized city name
+   * Normalize city name for display purposes
+   * This preserves the original case but removes special characters
    */
   private normalizeCity(city: string): string {
     return city
-      .toLowerCase()
-      .replace(/\s+/g, '') // Remove spaces
-      .replace(/[äÄ]/g, 'a') // Replace umlauts
-      .replace(/[öÖ]/g, 'o')
-      .replace(/[üÜ]/g, 'u')
+      .trim()
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .replace(/[äÄ]/g, (match) => match === 'ä' ? 'a' : 'A')
+      .replace(/[öÖ]/g, (match) => match === 'ö' ? 'o' : 'O')
+      .replace(/[üÜ]/g, (match) => match === 'ü' ? 'u' : 'U')
       .replace(/[ß]/g, 'ss');
+  }
+
+  /**
+   * Normalize city name for comparison purposes
+   * This converts to lowercase and removes spaces for case-insensitive comparison
+   */
+  private normalizeCityForComparison(city: string): string {
+    return this.normalizeCity(city).toLowerCase().replace(/\s+/g, '');
   }
 }
 

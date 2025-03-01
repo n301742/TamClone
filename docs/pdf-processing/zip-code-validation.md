@@ -13,43 +13,34 @@ ZIP code validation is a critical component of the address validation process. T
 
 ## Internal ZIP Validation Service
 
-The `ZipValidationService` provides fast validation using an in-memory database of postal codes and cities.
+The `ZipValidationService` provides fast validation using the database for postal codes and cities.
 
 ### Data Structure
 
-The service maintains two separate maps for German and Austrian postal codes:
+The service queries the database for ZIP code validation:
 
 ```typescript
-private germanZipCodes: Map<string, ZipEntry> = new Map();
-private austrianZipCodes: Map<string, ZipEntry> = new Map();
-```
-
-Where `ZipEntry` contains:
-
-```typescript
-interface ZipEntry {
-  zipCode: string;
-  city: string;
-  state?: string;
-  country: string;
-}
+// Query the database for a specific ZIP code
+const entries = await prisma.zipCode.findMany({
+  where: {
+    zipCode: zipCode
+  }
+});
 ```
 
 ### Initialization
 
-The service initializes lazily, loading data only when first used:
+The service initializes by checking the database:
 
 ```typescript
 private async initialize(): Promise<void> {
   if (this.initialized) return;
   
-  await Promise.all([
-    this.loadGermanZipCodes(),
-    this.loadAustrianZipCodes()
-  ]);
+  // Check how many ZIP codes we have in the database
+  const count = await prisma.zipCode.count();
+  console.log(`[ZIP Validation] Database contains ${count} ZIP code entries`);
   
   this.initialized = true;
-  logger.info(`ZIP validation service initialized with ${this.germanZipCodes.size} German and ${this.austrianZipCodes.size} Austrian ZIP codes`);
 }
 ```
 
@@ -59,14 +50,14 @@ The `validateZipCodeCity` method checks if a given postal code and city combinat
 
 ```typescript
 async validateZipCodeCity(
-  postalCode: string,
+  zipCode: string,
   city: string
 ): Promise<{
-  matchFound: boolean;
-  originalCity?: string;
+  isValid: boolean;
   suggestedCity?: string;
   allPossibleCities?: string[];
   mismatch?: boolean;
+  confidenceAdjustment: number;
 }>
 ```
 
@@ -74,10 +65,9 @@ The validation follows these steps:
 
 1. Initialize the service if needed
 2. Normalize the city name for comparison
-3. Determine if the postal code is German (5 digits) or Austrian (4 digits)
-4. Look up the postal code in the appropriate map
-5. If found, compare the provided city with the stored city
-6. Return validation results including all possible cities for the ZIP code
+3. Query the database for the ZIP code
+4. If found, compare the provided city with the stored cities
+5. Return validation results including all possible cities for the ZIP code
 
 ## External ZIP Validation Service
 
@@ -87,8 +77,7 @@ The `ExternalZipValidationService` provides a more comprehensive validation by q
 
 The service integrates with:
 
-- OpenPLZ API for German postal codes
-- Austrian Post API for Austrian postal codes
+- OpenPLZ API for German and Austrian postal codes
 
 ### Caching Mechanism
 
@@ -96,10 +85,11 @@ Results from external APIs are cached in the database to improve performance:
 
 ```typescript
 private async cacheZipCodeResult(
-  postalCode: string,
+  zipCode: string,
   city: string,
-  allPossibleCities: string[],
-  country: string
+  state: string | null,
+  countryCode: string,
+  source: string = 'openplz'
 ): Promise<void>
 ```
 
@@ -194,7 +184,7 @@ The system applies different validation rules based on the postal code format:
 - Addresses with Austrian postal codes are not invalidated solely based on API validation failures
 
 ```typescript
-const isAustrian = postalCode.length === 4;
+const isAustrian = zipCode.length === 4;
 if (isAustrian) {
   // Apply more lenient validation rules
   confidenceAdjustment = confidenceAdjustment / 2;
@@ -292,13 +282,110 @@ This dynamic approach ensures that our database becomes more comprehensive over 
 
 The ZIP code database requires periodic updates:
 
-1. German postal codes are updated quarterly
-2. Austrian postal codes are updated annually
-3. The update process involves:
-   - Downloading the latest data from official sources
-   - Transforming the data to match the internal format
-   - Updating the database with new entries
-   - Logging changes for auditing purposes
+1. The system automatically updates the database when it discovers new valid city-ZIP code combinations
+2. External API results are cached to improve performance and reduce API calls
+3. The database can be manually updated if needed
+
+## Street Validation
+
+In addition to ZIP code validation, the system also validates street names using a similar approach.
+
+### Overview
+
+Street validation ensures that the extracted street name is valid for the given postal code and city. This adds another layer of validation to the address extraction process.
+
+### API Integration
+
+The street validation service integrates with:
+
+- OpenPLZ API for German and Austrian streets
+
+The API endpoints used are:
+- For Germany: `openplzapi.org/de/Streets?name={Straßenname}&postalCode={Postleitzahl}&locality={Ortsname}`
+- For Austria: `openplzapi.org/at/Streets?name={Straßenname}&postalCode={Postleitzahl}&locality={Ortsname}`
+
+### Database Schema
+
+The street validation data is stored in the database using the following schema:
+
+```prisma
+model StreetValidation {
+  id          String   @id @default(uuid())
+  street      String
+  postalCode  String
+  city        String
+  country     String
+  source      String   @default("internal") // "internal", "openplz", etc.
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+  
+  @@unique([street, postalCode, city])
+}
+```
+
+### Validation Process
+
+The street validation process follows these steps:
+
+1. Check if the street exists in the internal database for the given postal code and city
+2. If not found, query the OpenPLZ API to check if the street is valid
+3. If the street is valid, add it to the database for future use
+4. Return validation results including all possible streets for the given postal code and city
+
+### Confidence Scoring
+
+The street validation contributes to the overall confidence score of the address:
+
+- Perfect match: Positive confidence adjustment (+0.2)
+- Partial match (street matches one of multiple possible streets): Small positive confidence adjustment (+0.1)
+- Mismatch (street doesn't match any possible street): Negative confidence adjustment (-0.2)
+- No match found (street not in database or API): Small negative confidence adjustment (-0.1)
+
+For Austrian addresses, the confidence adjustments are typically more lenient due to potential gaps in API coverage.
+
+### Example: Street Validation
+
+For a German address with postal code "10117" and city "Berlin":
+
+1. The system first checks if the street "Unter den Linden" exists in the internal database for "10117 Berlin"
+2. If not found, it queries the OpenPLZ API: `openplzapi.org/de/Streets?name=Unter%20den%20Linden&postalCode=10117&locality=Berlin`
+3. If the API confirms the street is valid, it adds "Unter den Linden" to the database for "10117 Berlin"
+4. Future validations of "Unter den Linden" in "10117 Berlin" will succeed with high confidence
+
+### Street Name Normalization
+
+The system normalizes street names for better matching:
+
+```typescript
+function normalizeStreet(street: string): string {
+  return street
+    .toLowerCase()
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/[äÄ]/g, 'a') // Replace umlauts
+    .replace(/[öÖ]/g, 'o')
+    .replace(/[üÜ]/g, 'u')
+    .replace(/[ß]/g, 'ss')
+    .replace(/str\.|straße|strasse/g, 'str') // Normalize street suffixes
+    .replace(/\./g, '') // Remove periods
+    .replace(/-/g, ''); // Remove hyphens
+}
+```
+
+This normalization handles common variations in street names, such as:
+- Different spellings of "Straße" (e.g., "Strasse", "Str.")
+- Umlauts and special characters
+- Spaces and hyphens
+
+## Integration with Address Extraction
+
+Both ZIP code validation and street validation are integrated into the address extraction process:
+
+1. The system first extracts the address components from the PDF
+2. It then validates the postal code and city
+3. If the postal code and city are valid, it validates the street
+4. The validation results contribute to the overall confidence score of the extracted address
+
+This multi-layered validation approach ensures that the extracted address is as accurate as possible.
 
 ## Troubleshooting
 
@@ -346,4 +433,54 @@ Planned enhancements to the ZIP code validation system:
 2. Improved fuzzy matching for city names
 3. Integration with address autocomplete services
 4. Machine learning-based confidence scoring
-5. Comprehensive database of Austrian postal codes with all possible cities for each ZIP code 
+5. Comprehensive database of Austrian postal codes with all possible cities for each ZIP code
+
+## Validation Response Format
+
+The validation service returns a structured response with the following fields:
+
+```typescript
+interface ZipValidationResult {
+  isValid: boolean;
+  suggestedCity?: string;
+  originalCity?: string;
+  allPossibleCities?: string[];
+  mismatch?: boolean;
+  country?: string;
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `isValid` | boolean | Whether the ZIP code and city combination is valid |
+| `suggestedCity` | string (optional) | The suggested city name from validation |
+| `originalCity` | string (optional) | The original city name provided for validation |
+| `allPossibleCities` | string[] (optional) | All possible cities for the given ZIP code |
+| `mismatch` | boolean (optional) | Whether there is a mismatch between the provided city and the expected city |
+| `country` | string (optional) | The country code for the ZIP code (e.g., "DE", "AT") |
+
+## Special Handling for Austrian Addresses
+
+Austrian postal codes (4-digit format) receive special handling in the validation process:
+
+1. The system recognizes Austrian postal codes by their 4-digit format
+2. For Vienna districts, the system handles the special format (e.g., "Wien, Josefstadt")
+3. If external validation fails for Austrian addresses, the system is more lenient in its validation
+
+This special handling is implemented as follows:
+
+```typescript
+// Detect Austrian postal code by length
+const isAustrian = postalCode.length === 4;
+
+// If validation fails but it's an Austrian address
+if (!validationResult.isValid && isAustrian) {
+  // Be more lenient with Austrian addresses
+  console.log('Austrian postal code detected, being more lenient with validation');
+  
+  // For Austrian addresses, don't invalidate the address just because the API validation failed
+  isValid = true;
+}
+``` 

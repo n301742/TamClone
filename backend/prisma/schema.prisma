@@ -140,4 +140,18 @@ model ZipCode {
   createdAt   DateTime @default(now())
   
   @@unique([zipCode, city])
+}
+
+// Street validation cache model
+model StreetValidation {
+  id          String   @id @default(uuid())
+  street      String
+  postalCode  String
+  city        String
+  country     String
+  source      String   @default("internal") // "internal", "openplz", etc.
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+  
+  @@unique([street, postalCode, city])
 } 

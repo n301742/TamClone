@@ -66,6 +66,22 @@ This is the backend API for the BriefButler application, which allows users to u
 - `POST /api/letters/:id/send` - Send letter to BriefButler API
 - `DELETE /api/letters/:id` - Delete a letter
 
+## Address Validation
+
+The system includes robust address validation capabilities for both postal codes/cities and street names. When a PDF is uploaded with address extraction enabled, the system:
+
+1. Extracts text from the address window area
+2. Validates postal codes, cities, and street names
+3. Returns validation results while preserving original data
+
+For detailed information about the address validation process and API response format, see the [Address Validation Documentation](../docs/address-validation.md).
+
+Key features of the address validation system:
+- Internal and external validation sources
+- Handling of common variations and abbreviations
+- Positive approach focusing on matches rather than mismatches
+- Preservation of original extracted data
+
 ## Scripts
 
 - `npm start` - Start the production server

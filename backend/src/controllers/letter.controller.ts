@@ -6,7 +6,7 @@ import axios from 'axios';
 import path from 'path';
 import fs from 'fs';
 import FormData from 'form-data';
-import { pdfProcessingService } from '../services/pdf-processing.service';
+import { pdfProcessingService, AddressFormType } from '../services/pdf-processing.service';
 
 // BriefButler API configuration
 const BRIEFBUTLER_API_URL = process.env.BRIEFBUTLER_API_URL || 'https://api.briefbutler.com/v2.5';
@@ -35,7 +35,8 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
       isRegistered, 
       isColorPrint, 
       isDuplexPrint,
-      extractAddress // New flag to indicate if we should extract address from PDF
+      extractAddress, // New flag to indicate if we should extract address from PDF
+      formType // Form type for address extraction
     } = req.body;
     
     console.log('Extract address flag:', extractAddress, typeof extractAddress);
@@ -67,7 +68,25 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
     if (extractAddress === true || extractAddress === 'true') {
       try {
         console.log('Extracting address from PDF:', file.path);
-        const extractedAddress = await pdfProcessingService.extractAddressFromPdf(file.path);
+        
+        // Convert formType string to AddressFormType enum
+        let addressFormType;
+        if (formType === 'formA') {
+          addressFormType = AddressFormType.FORM_A;
+        } else if (formType === 'din676') {
+          addressFormType = AddressFormType.DIN_676;
+        } else {
+          // Default to formB
+          addressFormType = AddressFormType.FORM_B;
+        }
+        
+        console.log(`Using form type: ${formType} (${addressFormType})`);
+        
+        // Pass the form type to the PDF processing service
+        const extractedAddress = await pdfProcessingService.extractAddressFromPdf(
+          file.path,
+          addressFormType
+        );
         
         console.log('Extracted address result:', JSON.stringify(extractedAddress));
         
@@ -82,27 +101,30 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
               (extractedAddress.postalCode.length === 5 ? 'German (5-digit)' : 
                extractedAddress.postalCode.length === 4 ? 'Austrian (4-digit)' : 'Unknown') : null,
             cityProvided: !!extractedAddress.city,
-            matchFoundInDatabase: (extractedAddress as any).zipValidationDetails?.matchFound || false,
+            matchFound: (extractedAddress as any).zipValidationDetails?.matchFound || false,
             originalCity: (extractedAddress as any).zipValidationDetails?.originalCity || extractedAddress.city || null,
             suggestedCity: (extractedAddress as any).zipValidationDetails?.suggestedCity || null
+          },
+          streetValidation: {
+            attempted: !!(extractedAddress.street && extractedAddress.postalCode && extractedAddress.city),
+            streetProvided: !!extractedAddress.street,
+            matchFound: (extractedAddress as any).streetValidationDetails?.matchFound || false,
+            originalStreet: (extractedAddress as any).streetValidationDetails?.originalStreet || extractedAddress.street || null,
+            suggestedStreet: (extractedAddress as any).streetValidationDetails?.suggestedStreet || null
           }
         };
         
-        // Only use extracted address if confidence is above threshold
-        if (extractedAddress.confidence >= 0.6) {
-          recipientData = {
-            name: extractedAddress.name || '',
-            address: extractedAddress.street || '',
-            city: extractedAddress.city || '',
-            state: extractedAddress.state || '',
-            postalCode: extractedAddress.postalCode || '',
-            country: extractedAddress.country || '',
-          };
-          
-          console.log('Successfully extracted address with confidence:', extractedAddress.confidence);
-        } else {
-          console.log('Address extraction confidence too low:', extractedAddress.confidence);
-        }
+        // Always use extracted address regardless of confidence
+        recipientData = {
+          name: extractedAddress.name || '',
+          address: extractedAddress.street || '',
+          city: extractedAddress.city || '',
+          state: extractedAddress.state || '',
+          postalCode: extractedAddress.postalCode || '',
+          country: extractedAddress.country || '',
+        };
+        
+        console.log('Using extracted address with confidence:', extractedAddress.confidence);
       } catch (error) {
         console.error('Error extracting address from PDF:', error);
         // Continue with other address sources if extraction fails

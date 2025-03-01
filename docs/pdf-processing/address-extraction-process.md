@@ -128,13 +128,49 @@ A valid address must have:
 
 ### 7. ZIP Code and City Validation
 
-If a postal code and city are present, they are validated against both internal and external databases:
+If a postal code and city are present, they are validated using a multi-layered approach:
 
-1. First, the internal database is checked using `ZipValidationService`
+1. First, the internal database is checked using `ZipValidationService`, which queries the database for matching ZIP code entries
 2. If internal validation fails, external validation is attempted using `ExternalZipValidationService`
 3. The validation process checks if the extracted city matches any of the possible cities for the given ZIP code
+4. If a valid city-ZIP code combination is found in the external API but not in our database, it's automatically added to the database for future use
 
-### 8. Confidence Scoring
+This dynamic approach allows the system to learn and adapt over time, eliminating the need for hard-coded special cases.
+
+### 8. Street Validation
+
+After validating the ZIP code and city, the system validates the street name:
+
+1. The system checks if the extracted street exists for the given postal code and city
+2. First, the internal database is checked using `StreetValidationService`
+3. If internal validation fails, external validation is attempted using the OpenPLZ API
+4. The validation process checks if the extracted street matches any of the possible streets for the given postal code and city
+5. If a valid street is found in the external API but not in our database, it's automatically added to the database for future use
+
+The street validation follows the same dynamic approach as ZIP code validation, allowing the system to learn and adapt over time.
+
+```typescript
+// Example of street validation
+const streetValidationResult = await streetValidationService.validateStreet(
+  street,
+  postalCode,
+  city
+);
+
+if (streetValidationResult.isValid) {
+  // Street is valid for this postal code and city
+  console.log(`Street "${street}" is valid for ${postalCode} ${city}`);
+} else if (streetValidationResult.mismatch) {
+  // Street might be valid but doesn't exactly match
+  console.log(`Street "${street}" might be valid for ${postalCode} ${city}`);
+  console.log(`Suggested street: ${streetValidationResult.suggestedStreet}`);
+} else {
+  // Street is not valid
+  console.log(`Street "${street}" is not valid for ${postalCode} ${city}`);
+}
+```
+
+### 9. Confidence Scoring
 
 A confidence score is calculated based on the validation results:
 
@@ -149,18 +185,30 @@ if (addressData.zipValidationDetails) {
     confidence -= 0.1; // Small reduction for no match found
   }
 }
+
+// Apply confidence adjustment for street validation
+if (addressData.streetValidationDetails) {
+  if (addressData.streetValidationDetails.mismatch) {
+    confidence -= 0.2; // Reduction for street mismatches
+  } else if (!addressData.streetValidationDetails.matchFound) {
+    confidence -= 0.1; // Small reduction for no match found
+  }
+}
 ```
 
 ## Special Handling Cases
 
 ### Multiple Cities for a Single ZIP Code
 
-When a ZIP code corresponds to multiple cities:
+The system now handles multiple cities for a single ZIP code dynamically:
 
-1. All possible cities are retrieved from the validation service
-2. The extracted city is compared against all possible cities
-3. If the extracted city matches any of the possible cities, it's considered valid
-4. If not, a mismatch is flagged and a suggested city is provided
+1. When querying the database, all entries with the same ZIP code are retrieved
+2. The extracted city is compared against all cities found in the database
+3. If the extracted city matches any of the cities, it's considered valid
+4. If not found in the database but confirmed valid by the external API, the new city-ZIP code combination is added to the database
+5. This approach allows the system to automatically discover and validate new city-ZIP code combinations
+
+For example, Austrian postal code 6971 corresponds to both "Hard" and "Fußach". Both combinations are stored as separate entries in the database, allowing the system to validate either city as correct for that ZIP code.
 
 ### Austrian Postal Codes
 
@@ -200,8 +248,45 @@ The final output is an `ExtractedAddress` object containing:
     allPossibleCities?: string[];
     mismatch?: boolean;
   };
+  streetValidationDetails?: {
+    matchFound: boolean;
+    originalStreet?: string;
+    suggestedStreet?: string;
+    allPossibleStreets?: string[];
+    mismatch?: boolean;
+  };
 }
 ```
+
+## API Response Format
+
+When the address extraction is performed through the API, the response includes detailed validation information:
+
+```typescript
+{
+  confidence: number;
+  rawText: string;
+  zipCodeValidation: {
+    attempted: boolean;
+    countryDetected: string | null;
+    zipCodeFormat: string | null;
+    cityProvided: boolean;
+    matchFoundInDatabase: boolean;
+    originalCity: string | null;
+    suggestedCity: string | null;
+  };
+  streetValidation: {
+    attempted: boolean;
+    streetProvided: boolean;
+    matchFoundInDatabase: boolean;
+    originalStreet: string | null;
+    suggestedStreet: string | null;
+    mismatch: boolean;
+  };
+}
+```
+
+This detailed response allows clients to understand why a particular confidence score was assigned and what validation issues were encountered.
 
 ## Logging
 
@@ -213,4 +298,35 @@ The service includes comprehensive logging to track the extraction process:
 - Confidence adjustments are logged
 - Any errors or mismatches are logged
 
-This logging is essential for troubleshooting and improving the extraction process. 
+This logging is essential for troubleshooting and improving the extraction process.
+
+## Address Validation Details
+
+The extracted address includes detailed validation information:
+
+```typescript
+interface ExtractedAddress {
+  name?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  confidence: number;
+  rawText?: string;
+  zipValidationDetails?: {
+    matchFound: boolean;
+    originalCity?: string;
+    suggestedCity?: string;
+    allPossibleCities?: string[];
+    mismatch?: boolean;
+  };
+  streetValidationDetails?: {
+    matchFound: boolean;
+    originalStreet?: string;
+    suggestedStreet?: string;
+    allPossibleStreets?: string[];
+    mismatch?: boolean;
+  };
+}
+``` 

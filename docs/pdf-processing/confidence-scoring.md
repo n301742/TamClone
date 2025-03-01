@@ -13,14 +13,27 @@ The confidence scoring system provides a numerical measure (between 0 and 1) of 
 
 ## Confidence Score Calculation
 
-The confidence score starts at a baseline value and is adjusted based on various factors:
+The confidence score starts at a baseline value of 0 and is adjusted based on validation results:
 
 ```typescript
-// Start with a high baseline confidence
-let confidence = 0.9;
+// Start with a base confidence of 0
+let confidence = 0.0;
 
-// Apply adjustments based on validation results
-// ...
+// Add to confidence based on successful validations
+if (zipValidationDetails && zipValidationDetails.matchFound) {
+  // ZIP/city validation passed
+  confidence += 0.4;
+  
+  // Only check street validation if ZIP/city validation passed
+  if (streetValidationDetails && streetValidationDetails.matchFound) {
+    confidence += 0.2;
+  }
+}
+
+// Add a base confidence of 0.4 if we have at least some address data
+if (confidence === 0 && (name || street || postalCode || city)) {
+  confidence = 0.4;
+}
 
 // Ensure the final score is between 0 and 1
 confidence = Math.max(0, Math.min(1, confidence));
@@ -28,132 +41,32 @@ confidence = Math.max(0, Math.min(1, confidence));
 
 ## Factors Affecting Confidence
 
-### 1. Address Completeness
-
-The presence or absence of key address components affects the confidence score:
-
-| Component | Impact on Confidence |
-|-----------|---------------------|
-| Missing name | -0.2 |
-| Missing street | -0.2 |
-| Missing city and postal code | -0.3 |
-| Missing country (for international) | -0.1 |
-
-### 2. ZIP Code Validation
+### 1. ZIP Code and City Validation
 
 The results of ZIP code validation significantly impact confidence:
 
 | Validation Result | Impact on Confidence |
 |-------------------|---------------------|
-| Perfect match | No change |
-| City matches one of multiple possible cities | -0.05 |
-| City mismatch with suggestion | -0.3 |
-| ZIP code not found | -0.1 |
-| External API validation failure | -0.05 |
+| ZIP/city validation passes | +0.4 |
+| ZIP/city validation fails | No addition (remains at 0 or base level) |
 
-For Austrian addresses (4-digit postal codes), these adjustments are reduced by 50% due to less comprehensive database coverage.
+### 2. Street Validation
 
-### 3. Address Format Validation
+The results of street validation also impact confidence:
 
-The format of address components also affects confidence:
+| Validation Result | Impact on Confidence |
+|-------------------|---------------------|
+| Street validation passes (only checked if ZIP/city passes) | +0.2 |
+| Street validation fails | No addition |
 
-| Format Issue | Impact on Confidence |
-|--------------|---------------------|
-| Street without house number | -0.1 |
-| Unusual postal code format | -0.2 |
-| Unusual city name format | -0.1 |
+### 3. Base Confidence for Partial Data
 
-### 4. OCR Quality Indicators
+If no validations pass but some address data is present:
 
-The quality of the OCR process provides additional confidence adjustments:
-
-| OCR Issue | Impact on Confidence |
+| Condition | Impact on Confidence |
 |-----------|---------------------|
-| Low contrast text | -0.1 |
-| Text with low confidence characters | -0.05 to -0.2 (proportional) |
-| Skewed or rotated text | -0.1 |
-
-## Implementation Details
-
-### Confidence Adjustment in Address Validation
-
-The `isValidAddress` method applies confidence adjustments based on validation results:
-
-```typescript
-async isValidAddress(address: ExtractedAddress): Promise<boolean> {
-  // Basic validation
-  if (!address.name || !address.street || (!address.city && !address.postalCode)) {
-    return false;
-  }
-
-  let confidenceAdjustment = 0;
-  let isValid = true;
-
-  // ZIP code validation if both postal code and city are present
-  if (address.postalCode && address.city) {
-    // Internal validation
-    const internalValidationResult = await this.zipValidationService.validateZipCodeCity(
-      address.postalCode,
-      address.city
-    );
-
-    // Apply confidence adjustments based on validation results
-    if (internalValidationResult.matchFound) {
-      // Perfect match - no adjustment
-    } else if (internalValidationResult.mismatch) {
-      // City mismatch
-      confidenceAdjustment -= 0.3;
-    } else {
-      // ZIP code not found in internal database
-      confidenceAdjustment -= 0.1;
-    }
-
-    // Special handling for Austrian postal codes
-    const isAustrian = address.postalCode.length === 4;
-    if (isAustrian) {
-      // More lenient validation for Austrian addresses
-      confidenceAdjustment = confidenceAdjustment / 2;
-    }
-  }
-
-  // Apply the confidence adjustment
-  address.confidence = Math.max(0, Math.min(1, address.confidence + confidenceAdjustment));
-
-  return isValid;
-}
-```
-
-### Confidence Adjustment in Address Parsing
-
-The `parseAddressFromText` method applies initial confidence scoring:
-
-```typescript
-async parseAddressFromText(text: string): Promise<ExtractedAddress> {
-  // Start with a high baseline confidence
-  let confidence = 0.9;
-  
-  // Parse address components
-  // ...
-  
-  // Apply confidence adjustments based on completeness
-  if (!name) confidence -= 0.2;
-  if (!street) confidence -= 0.2;
-  if (!postalCode && !city) confidence -= 0.3;
-  
-  // Create the result object
-  const result: ExtractedAddress = {
-    name,
-    street,
-    city,
-    postalCode,
-    country,
-    confidence,
-    rawText: text
-  };
-  
-  return result;
-}
-```
+| Some address data present (name, street, postal code, or city) | Base confidence of 0.4 |
+| No address data | Confidence remains at 0 |
 
 ## Confidence Thresholds
 
@@ -161,19 +74,17 @@ The application uses confidence thresholds to determine how to handle addresses:
 
 | Confidence Range | Handling |
 |------------------|----------|
-| 0.8 - 1.0 | High confidence - automatic processing |
-| 0.5 - 0.8 | Medium confidence - may require review |
-| 0.0 - 0.5 | Low confidence - requires manual review |
-
-These thresholds can be configured in the application settings.
+| 0.6 | High confidence - automatic processing (both validations passed) |
+| 0.4 | Medium confidence - may require review (partial validation or some address data) |
+| 0.0 | Low confidence - requires manual review (no validations passed, minimal address data) |
 
 ## Confidence Score Display
 
 The confidence score is displayed to users in the following ways:
 
 1. Color-coded indicators (green for high, yellow for medium, red for low)
-2. Percentage display (e.g., "85% confidence")
-3. Detailed breakdown of factors affecting the score (in the address review interface)
+2. Percentage display (e.g., "60% confidence")
+3. Detailed breakdown of validation results (in the address review interface)
 
 ## Logging and Analytics
 
@@ -183,8 +94,10 @@ Confidence scores are logged for analysis and system improvement:
 logger.info(`Address processed with confidence ${address.confidence.toFixed(2)}`, {
   addressId: address.id,
   confidence: address.confidence,
-  validationDetails: address.zipValidationDetails,
-  adjustments: confidenceAdjustments
+  validationDetails: {
+    zipValidation: address.zipValidationDetails,
+    streetValidation: address.streetValidationDetails
+  }
 });
 ```
 
