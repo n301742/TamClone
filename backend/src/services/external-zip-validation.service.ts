@@ -414,6 +414,7 @@ export class ExternalZipValidationService {
       });
       
       if (entries && entries.length > 0) {
+        console.log(`[External ZIP Validation] Found ${entries.length} entries for ZIP code ${zipCode} in database: ${entries.map((e: any) => e.city).join(', ')}`);
         return entries.map((entry: any) => ({
           zipCode: entry.zipCode,
           city: entry.city,
@@ -445,43 +446,33 @@ export class ExternalZipValidationService {
     source: string = 'openplz'
   ): Promise<void> {
     try {
-      // Check if we already have this ZIP code in our database
-      // Use type assertion to avoid TypeScript error
-      const existingEntry = await (prisma as any).zipCode.findUnique({
-        where: { zipCode }
+      // Use upsert with the composite key (zipCode, city)
+      await (prisma as any).zipCode.upsert({
+        where: {
+          zipCode_city: {
+            zipCode,
+            city
+          }
+        },
+        update: {
+          state,
+          country: countryCode,
+          source,
+          lastUpdated: new Date()
+        },
+        create: {
+          zipCode,
+          city,
+          state,
+          country: countryCode,
+          source,
+          lastUpdated: new Date()
+        }
       });
       
-      if (existingEntry) {
-        // Update existing entry
-        await (prisma as any).zipCode.update({
-          where: { zipCode },
-          data: {
-            city,
-            state,
-            country: countryCode,
-            source,
-            lastUpdated: new Date()
-          }
-        });
-        
-        console.log(`[External ZIP Validation] Updated ZIP code ${zipCode} in database`);
-      } else {
-        // Create new entry
-        await (prisma as any).zipCode.create({
-          data: {
-            zipCode,
-            city,
-            state,
-            country: countryCode,
-            source,
-            lastUpdated: new Date()
-          }
-        });
-        
-        console.log(`[External ZIP Validation] Added ZIP code ${zipCode} to database`);
-      }
+      console.log(`[External ZIP Validation] Cached ZIP code ${zipCode} with city ${city} in database`);
     } catch (error) {
-      console.error(`[External ZIP Validation] Error caching ZIP code ${zipCode}:`, error);
+      console.error(`[External ZIP Validation] Error caching ZIP code ${zipCode} with city ${city}:`, error);
     }
   }
   

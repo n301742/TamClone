@@ -228,23 +228,45 @@ The ZIP code data is stored in the database using the following schema:
 ```prisma
 model ZipCode {
   id          String   @id @default(uuid())
-  zipCode     String   @unique
+  zipCode     String
   city        String
   state       String?
   country     String
   source      String   @default("internal") // "internal", "openplz", etc.
   lastUpdated DateTime @default(now())
   createdAt   DateTime @default(now())
+  
+  @@unique([zipCode, city])
 }
 ```
 
 Our approach to handling multiple cities for a single ZIP code works as follows:
 
-1. Each unique ZIP code has a single entry in the database with the primary city
-2. When validating a city-ZIP code combination, we first check if it matches the database entry
-3. If it doesn't match, we query the external API to check if it's a valid alternative
+1. Each unique ZIP code-city combination has a separate entry in the database
+2. When validating a city-ZIP code combination, we first check if it exists in the database
+3. If it doesn't exist, we query the external API to check if it's a valid alternative
 4. If confirmed valid, we add the new city-ZIP code combination as a new entry
 5. This allows us to build a comprehensive database of all valid city-ZIP code combinations over time
+
+### Example: ZIP Code 6971
+
+For Austrian postal code 6971, which serves both "Hard" and "Fußach", we would have two separate entries in the database:
+
+```
+Entry 1:
+- zipCode: "6971"
+- city: "Fußach"
+- country: "AT"
+- source: "address-extraction"
+
+Entry 2:
+- zipCode: "6971"
+- city: "Hard"
+- country: "AT"
+- source: "address-extraction"
+```
+
+This approach ensures that both "6971 Fußach" and "6971 Hard" are recognized as valid combinations.
 
 ### Dynamic Database Updates
 

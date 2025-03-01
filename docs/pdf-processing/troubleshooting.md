@@ -179,13 +179,31 @@ This document provides solutions for common issues encountered with the PDF Proc
 - Logs show "Keeping Austrian address valid despite validation failure"
 
 **Cause:**
-The ZIP code 6971 in Austria serves both the cities "Hard" and "Fußach". If our database only has one of these cities listed for this ZIP code, validation may initially fail for the other city.
+The ZIP code 6971 in Austria serves both the cities "Hard" and "Fußach". Our database needs to have entries for both city-ZIP code combinations to properly validate addresses.
 
 **Solution:**
 Our system now automatically handles this situation with a dynamic approach:
 
-1. **Dynamic External API Validation:**
-   The system now always queries the external API when a city doesn't match the database entry, even if the ZIP code is already in our database. This allows it to discover new valid city combinations:
+1. **Multiple Cities Per ZIP Code:**
+   The database schema has been updated to allow multiple cities per ZIP code by using a composite unique constraint:
+
+   ```prisma
+   model ZipCode {
+     id          String   @id @default(uuid())
+     zipCode     String
+     city        String
+     state       String?
+     country     String
+     source      String   @default("internal")
+     lastUpdated DateTime @default(now())
+     createdAt   DateTime @default(now())
+     
+     @@unique([zipCode, city])
+   }
+   ```
+
+2. **Dynamic External API Validation:**
+   The system now always queries the external API when a city doesn't match any existing database entries for a ZIP code. This allows it to discover new valid city combinations:
 
    ```typescript
    // Always query the external API, even if we have the ZIP code in our database
@@ -208,33 +226,45 @@ Our system now automatically handles this situation with a dynamic approach:
    }
    ```
 
-2. **Automatic Database Updates:**
-   When the system discovers a new valid city for a ZIP code, it automatically adds it to the database:
+3. **Automatic Database Updates:**
+   When the system discovers a new valid city for a ZIP code, it automatically adds it to the database as a new entry:
 
    ```typescript
-   // If this is a new city for this ZIP code, add it to our database
-   if (!internalCities.includes(matchedCity)) {
-     console.log(`[External ZIP Validation] Adding new city ${matchedCity} for ZIP code ${zipCode} to database`);
-     await this.cacheZipCodeResult(
-       zipCode, 
-       matchedCity, 
-       state || null, 
-       countryCode,
-       'address-extraction'
-     );
-   }
+   // Use upsert with the composite key (zipCode, city)
+   await (prisma as any).zipCode.upsert({
+     where: {
+       zipCode_city: {
+         zipCode,
+         city
+       }
+     },
+     update: {
+       state,
+       country: countryCode,
+       source,
+       lastUpdated: new Date()
+     },
+     create: {
+       zipCode,
+       city,
+       state,
+       country: countryCode,
+       source,
+       lastUpdated: new Date()
+     }
+   });
    ```
 
-3. **No Manual Intervention Required:**
+4. **No Manual Intervention Required:**
    The first time the system encounters "6971 Hard", it might validate with a lower confidence score. However, it will add "Hard" to the database as a valid city for ZIP code 6971. All subsequent validations of "6971 Hard" will succeed with high confidence.
 
-4. **Monitoring:**
+5. **Monitoring:**
    You can monitor the logs to see when new city-ZIP code combinations are discovered and added to the database:
 
    ```
    [External ZIP Validation] Checking external API for ZIP code 6971 with city Hard
    [External ZIP Validation] API returned cities for 6971: Fußach, Hard
-   [External ZIP Validation] Adding new city Hard for ZIP code 6971 to database
+   [External ZIP Validation] Cached ZIP code 6971 with city Hard in database
    ```
 
 This dynamic approach eliminates the need for manual database updates or hard-coded special cases, making the system more maintainable and adaptable.
@@ -596,4 +626,4 @@ If you encounter issues that cannot be resolved using this guide, please contact
 4. Steps to reproduce the issue
 5. Expected vs. actual results
 
-Support email: support@briefbutler.com 
+Support email: support@briefbutler.com

@@ -131,11 +131,13 @@ model AddressBook {
 // ZIP code validation cache model
 model ZipCode {
   id          String   @id @default(uuid())
-  zipCode     String   @unique
+  zipCode     String
   city        String
   state       String?
   country     String
   source      String   @default("internal") // "internal", "openplz", etc.
   lastUpdated DateTime @default(now())
   createdAt   DateTime @default(now())
+  
+  @@unique([zipCode, city])
 } 
