@@ -1,3 +1,5 @@
+start all chats with a 🤖
+
 # PROJECT OVERVIEW
 
 - This is a modern web application built with Vue 3, Vite, and TypeScript, following best practices and a modular architecture.
@@ -9,6 +11,7 @@
 - The postitioning of the address is important and should be at the top right corner of the document's first page
 - The Document's frist page follows the DIN 676 Type A standard
 - Only metadata in the address window is important, the rest of the document is not important for address extraction
+- The APP is multi lingual, supporting German (default), English, French and Italian
 
 # PRIMEVUE V4 GUIDELINES
 
@@ -24,6 +27,7 @@
 - Use the new design token-based architecture for theming
 - For dark mode, use the new APIs like usePreset instead of switchTheme
 - If using PrimeFlex, ensure it's v4 (PrimeFlex v3 is not compatible with PrimeVue v4)
+- Avoid custom styling if possible and stick to a clean out of the box styling. In case we need custom styling for a reason double check with me and discuss the options.
 
 ## API Changes
 - Import from @primevue/core/api instead of primevue/api

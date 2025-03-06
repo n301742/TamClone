@@ -1,113 +1,118 @@
 # BriefButler
 
-A modern web application for uploading, processing, and forwarding letters in PDF format. BriefButler extracts address metadata from uploaded documents and forwards them to the appropriate delivery service.
+BriefButler is a modern web application for uploading, processing, and forwarding letters in PDF format. The application extracts address metadata from uploaded letters and forwards them to the BriefButler API for physical delivery.
 
 ## Features
 
-- PDF letter upload with drag-and-drop support
-- Automatic address extraction from PDF documents
-- Integration with BriefButler API for letter delivery
-- Status tracking for sent letters
-- User authentication via Google OAuth and username/password
-- Responsive design with dark/light mode support
+- Upload letters in PDF format
+- Extract address metadata using AI
+- Forward letters to the BriefButler API for delivery
+- Track letter status and delivery
+- User authentication via Google OAuth
+- Multi-language support (German, English, French, Italian)
 
 ## Technology Stack
 
 ### Frontend
 - Vue 3 with Composition API
-- TypeScript
-- Vite for build tooling
+- TypeScript for type safety
+- Vite for fast development and building
 - PrimeVue v4 for UI components
 - Tailwind CSS for styling
 - Vue Router for navigation
 - Pinia for state management
 
 ### Backend
-- Express.js for REST API
-- TypeScript
-- Prisma as ORM
-- PostgreSQL database
+- Express.js for the REST API
+- TypeScript for type safety
+- Prisma as the ORM
+- PostgreSQL for the database
 - JWT for authentication
-- Passport.js for auth strategies
-- Zod for request validation
-
-## Project Structure
-
-The project is divided into two main parts:
-
-```
-├── backend/           # Express.js API server
-│   ├── src/           # Source code
-│   ├── prisma/        # Database schema and migrations
-│   └── uploads/       # Temporary storage for uploaded PDFs
-│
-└── frontend/          # Vue 3 web application
-    ├── src/           # Source code
-    ├── public/        # Static assets
-    └── index.html     # Entry HTML file
-```
+- Passport.js for authentication strategies
 
 ## Getting Started
 
 ### Prerequisites
-
-- Node.js (v16 or later)
+- Node.js (v18 or higher)
 - npm or yarn
 - PostgreSQL database
 
 ### Installation
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/BriefButler.git
-   cd BriefButler
-   ```
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/briefbutler.git
+cd briefbutler
+```
 
-2. Install dependencies:
-   ```
-   # Install backend dependencies
-   cd backend
-   npm install
+2. Install dependencies for both frontend and backend
+```bash
+# Install backend dependencies
+cd backend
+npm install
 
-   # Install frontend dependencies
-   cd ../frontend
-   npm install
-   ```
+# Install frontend dependencies
+cd ../frontend
+npm install
+```
 
-3. Set up environment variables:
-   - Create a `.env` file in the backend directory based on `.env.example`
-   - Configure your database connection and other settings
+3. Set up environment variables
+```bash
+# In the backend directory
+cp .env.example .env
+# Edit .env with your database and API credentials
+```
 
-4. Set up the database:
-   ```
-   cd backend
-   npx prisma migrate dev
-   ```
+4. Run database migrations
+```bash
+# In the backend directory
+npx prisma migrate dev
+```
 
-5. Start the development servers:
-   ```
-   # Start backend server
-   cd backend
-   npm run dev
+5. Start the development servers
+```bash
+# Start backend server (from backend directory)
+npm run dev
 
-   # In another terminal, start frontend server
-   cd frontend
-   npm run dev
-   ```
+# Start frontend server (from frontend directory)
+npm run dev
+```
 
-## Development
+6. Open your browser and navigate to `http://localhost:3000`
 
-### Backend
+## Project Structure
 
-The backend server will be available at http://localhost:3000 by default.
-
-### Frontend
-
-The frontend development server will be available at http://localhost:5173 by default.
-
-## Deployment
-
-Detailed deployment instructions can be found in the [deployment guide](./docs/deployment.md).
+```
+├── backend/
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── utils/
+│   │   └── app.ts
+│   ├── prisma/
+│   │   └── schema.prisma
+│   ├── package.json
+│   └── tsconfig.json
+├── frontend/
+│   ├── src/
+│   │   ├── assets/
+│   │   ├── components/
+│   │   ├── composables/
+│   │   ├── router/
+│   │   ├── stores/
+│   │   ├── types/
+│   │   ├── utils/
+│   │   ├── views/
+│   │   ├── App.vue
+│   │   └── main.ts
+│   ├── package.json
+│   └── vite.config.ts
+└── README.md
+```
 
 ## License
 
@@ -116,4 +121,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - [BriefButler API](https://developers.briefbutler.com) for letter delivery services
-- All open-source libraries and tools used in this project 
+- [PrimeVue](https://primevue.org/) for UI components
+- [Tailwind CSS](https://tailwindcss.com/) for styling
+- [Vue.js](https://vuejs.org/) for the frontend framework 

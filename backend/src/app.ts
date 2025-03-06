@@ -16,9 +16,20 @@ const port = process.env.PORT || 3000;
 // Initialize Prisma client
 export const prisma = new PrismaClient();
 
+// Configure CORS with credentials
+const corsOptions = {
+  origin: 'http://localhost:5173', // Frontend URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'Authorization'],
+  credentials: true // Allow credentials
+};
+
 // Middleware
-app.use(helmet()); // Security headers
-app.use(cors()); // Enable CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' } // Allow cross-origin resource sharing
+})); // Security headers
+app.use(cors(corsOptions)); // Enable CORS with options
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 

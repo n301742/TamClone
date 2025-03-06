@@ -172,23 +172,14 @@ export const googleCallback = (req: Request, res: Response) => {
   // Generate tokens
   const { accessToken, refreshToken } = generateTokens(user);
 
-  // In a real application, you might want to redirect to the frontend with tokens
-  // For API testing, we'll just return the tokens as JSON
-  return res.status(200).json({
-    status: 'success',
-    message: 'Google authentication successful',
-    data: {
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
-      accessToken,
-      refreshToken,
-    },
-  });
+  // Redirect to frontend with tokens
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  
+  // Create a secure way to pass tokens to the frontend
+  // In production, you'd want to use a more secure method
+  const redirectUrl = `${frontendUrl}/auth/callback?token=${accessToken}`;
+  
+  return res.redirect(redirectUrl);
 };
 
 /**
