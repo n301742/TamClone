@@ -1,0 +1,21 @@
+---
+description: Steps taken to install the frontend
+globs: 
+alwaysApply: false
+---
+
+Install vite
+npm create vite@latest frontend -- --template vue-ts
+
+npm install vue-router
+
+Install PrimeVue
+
+npm install primevue @primeuix/themes
+npm install primeicons
+npm i unplugin-vue-components -D
+npm i @primevue/auto-import-resolver -D
+
+npm install tailwindcss tailwindcss-primeui
+
+npm install -D @types/node

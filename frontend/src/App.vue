@@ -1,26 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-import AppLayout from './components/layout/AppLayout.vue'
-import Toast from 'primevue/toast'
+import { ref } from 'vue';
 
-const route = useRoute()
-
-// Check if the current route requires authentication
-const requiresAuth = computed(() => route.meta.requiresAuth === true)
+const msg = ref('');
 </script>
 
 <template>
-  <!-- Global toast container for non-layout pages -->
-  <Toast />
-  
-  <!-- Use AppLayout for authenticated routes -->
-  <AppLayout v-if="requiresAuth" />
-  
-  <!-- For non-authenticated routes, just render the view -->
-  <router-view v-else />
+  <main>
+    <h1>Playground</h1>
+    <InputText v-model="msg" />
+    <p>{{ msg }}</p>
+  </main>
 </template>
 
-<style>
-/* Global styles can go here */
-</style>
+<style scoped></style>

@@ -1,0 +1,101 @@
+---
+description: This applies to our frontend design and implementation approach
+globs: 
+alwaysApply: false
+---
+
+# Frontend
+- Vue 3 with Composition API
+- TypeScript for type safety
+- Vite for fast development and building
+- PrimeVue v4 for UI components
+- Tailwind CSS for styling
+- Vue Router for navigation
+- Pinia for state management
+
+When using css styling always use Primevue's classes for Primevue components, for anything else use Tailwind css for consistency.
+Make sure you always use the use the newest versions and best parctice and check on the Web if you are not sure.
+
+# PrimeVue v4 Styling Conventions
+
+## Core CSS Utility Classes
+
+| Purpose | PrimeVue v3 (OLD) | PrimeVue v4 (NEW) |
+|---------|-------------------|-------------------|
+| **Layout** |  |  |
+| Display flex | `p-d-flex` | `flex` |
+| Display flex column | `p-flex-column` | `flex-column` |
+| Display grid | `p-grid` | `grid` |
+| Column sizing | `p-col-12 p-md-4` | `col-12 md:col-4` |
+| Full width | `style="width: 100%"` | `w-full` |
+| **Alignment** |  |  |
+| Align items center | `p-ai-center` | `align-items-center` |
+| Justify content between | `p-jc-between` | `justify-content-between` |
+| Justify content center | `p-jc-center` | `justify-content-center` |
+| **Spacing** |  |  |
+| Margin top | `p-mt-3` | `mt-3` |
+| Margin bottom | `p-mb-5` | `mb-5` |
+| Margin right | `p-mr-2` | `mr-2` |
+| Padding | `p-p-3` | `p-3` |
+| **Text** |  |  |
+| Text center | `p-text-center` | `text-center` |
+| Text small | `p-text-sm` | `text-sm` |
+| Text muted | `p-text-muted` | `text-color-secondary` |
+| **Responsive** |  |  |
+| Small screens & up | `p-sm-flex-row` | `sm:flex-row` |
+| Medium screens & up | `p-md-flex-row` | `md:flex-row` |
+
+## Component Props vs. Classes
+
+Modern PrimeVue v4 prefers using component props over CSS classes when possible:
+
+- **DataTable**: Use `size="small"` instead of `class="p-datatable-sm"`
+- **Button**: Use `outlined` prop instead of `class="p-button-outlined"`
+- **Form elements**: Use `class="w-full"` instead of `style="width: 100%"`
+
+## Layout Best Practices
+
+- Use the `grid` and `col-*` classes for layouts instead of custom flex containers
+- Use `flex` with `flex-column` and `flex-row` for smaller containers
+- Use responsive utilities like `md:col-6` for responsive breakpoints
+
+## Form Styling
+
+- Wrap form elements in `<div class="field">...</div>`
+- Use `label class="block"` for form labels
+- Use `class="w-full"` for full-width inputs
+
+## Checklist for Code Reviews
+
+When writing or reviewing code:
+
+1. Scan for any classes starting with `p-` (except component-specific like `p-input-icon-left`)
+2. Convert inline width styling to utility classes (`w-full`, `w-auto`, etc.)
+3. Ensure proper responsive patterns (`sm:`, `md:`, `lg:` prefixes)
+4. Use component props where available instead of classes
+
+## Example: Before and After
+
+### Before (PrimeVue v3)
+
+```vue
+<div class="p-d-flex p-flex-column p-ai-center p-jc-between">
+  <div class="p-grid">
+    <div class="p-col-12 p-md-6">
+      <InputText style="width: 100%" />
+    </div>
+  </div>
+</div>
+```
+
+### After (PrimeVue v4)
+
+```vue
+<div class="flex flex-column align-items-center justify-content-between">
+  <div class="grid">
+    <div class="col-12 md:col-6">
+      <InputText class="w-full" />
+    </div>
+  </div>
+</div>
+```

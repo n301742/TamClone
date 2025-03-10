@@ -1,0 +1,17 @@
+---
+description: This applies to the backend functionality and APIs provided. In particular the handling of PDF parsing and the standards of the supported documents
+globs: 
+alwaysApply: false
+---
+
+# Backend
+
+- [address-extraction-process.md](mdc:docs/pdf-processing/address-extraction-process.md)
+- [confidence-scoring.md](mdc:docs/pdf-processing/confidence-scoring.md)
+- [README.md](mdc:docs/pdf-processing/README.md)
+- [standards-compliance.md](mdc:docs/pdf-processing/standards-compliance.md)
+- [street-validation.md](mdc:docs/pdf-processing/street-validation.md)
+- [troubleshooting.md](mdc:docs/pdf-processing/troubleshooting.md)
+- [zip-code-validation.md](mdc:docs/pdf-processing/zip-code-validation.md)
+- [address-validation.md](mdc:docs/address-validation.md)
+- [api-reference-address-validation.md](mdc:docs/api-reference-address-validation.md)
