@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import FloatingConfigurator from '@/components/FloatingConfigurator.vue';
+import AppTopbar from '@/layout/AppTopbar.vue';
 
 const msg = ref('');
 </script>
 
 <template>
+  <AppTopbar />
   <main>
-    <FloatingConfigurator />
     <h1>Dummy</h1>
     <InputText v-model="msg" />
     <p>{{ msg }}</p>
