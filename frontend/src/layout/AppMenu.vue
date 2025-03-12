@@ -1,139 +1,69 @@
-<script setup>
-import { ref } from 'vue';
-
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import { useAuthStore } from '../stores/auth';
 import AppMenuItem from './AppMenuItem.vue';
 
-const model = ref([
+// Define interfaces for menu items
+interface MenuItem {
+  label: string;
+  icon?: string;
+  to?: string;
+  url?: string;
+  target?: string;
+  class?: string;
+  command?: () => void;
+  items?: MenuItem[];
+}
+
+interface MenuGroup {
+  label: string;
+  icon?: string;
+  to?: string;
+  items: MenuItem[];
+  separator?: boolean;
+}
+
+// Get authentication state
+const authStore = useAuthStore();
+const isAuthenticated = computed(() => authStore.isAuthenticated);
+const userName = computed(() => authStore.userFullName);
+
+// Menu model
+const model = ref<MenuGroup[]>([
     {
         label: 'Home',
-        items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }]
-    },
-    {
-        label: 'UI Components',
         items: [
-            { label: 'Form Layout', icon: 'pi pi-fw pi-id-card', to: '/uikit/formlayout' },
-            { label: 'Input', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
-            { label: 'Button', icon: 'pi pi-fw pi-mobile', to: '/uikit/button', class: 'rotated-icon' },
-            { label: 'Table', icon: 'pi pi-fw pi-table', to: '/uikit/table' },
-            { label: 'List', icon: 'pi pi-fw pi-list', to: '/uikit/list' },
-            { label: 'Tree', icon: 'pi pi-fw pi-share-alt', to: '/uikit/tree' },
-            { label: 'Panel', icon: 'pi pi-fw pi-tablet', to: '/uikit/panel' },
-            { label: 'Overlay', icon: 'pi pi-fw pi-clone', to: '/uikit/overlay' },
-            { label: 'Media', icon: 'pi pi-fw pi-image', to: '/uikit/media' },
-            { label: 'Menu', icon: 'pi pi-fw pi-bars', to: '/uikit/menu' },
-            { label: 'Message', icon: 'pi pi-fw pi-comment', to: '/uikit/message' },
-            { label: 'File', icon: 'pi pi-fw pi-file', to: '/uikit/file' },
-            { label: 'Chart', icon: 'pi pi-fw pi-chart-bar', to: '/uikit/charts' },
-            { label: 'Timeline', icon: 'pi pi-fw pi-calendar', to: '/uikit/timeline' },
-            { label: 'Misc', icon: 'pi pi-fw pi-circle', to: '/uikit/misc' }
+            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }
         ]
     },
     {
-        label: 'Pages',
-        icon: 'pi pi-fw pi-briefcase',
-        to: '/pages',
+        label: 'Mail Management',
         items: [
-            {
-                label: 'Landing',
-                icon: 'pi pi-fw pi-globe',
-                to: '/landing'
-            },
-            {
-                label: 'Auth',
-                icon: 'pi pi-fw pi-user',
-                items: [
-                    {
-                        label: 'Login',
-                        icon: 'pi pi-fw pi-sign-in',
-                        to: '/auth/login'
-                    },
-                    {
-                        label: 'Error',
-                        icon: 'pi pi-fw pi-times-circle',
-                        to: '/auth/error'
-                    },
-                    {
-                        label: 'Access Denied',
-                        icon: 'pi pi-fw pi-lock',
-                        to: '/auth/access'
-                    }
-                ]
-            },
-            {
-                label: 'Crud',
-                icon: 'pi pi-fw pi-pencil',
-                to: '/pages/crud'
-            },
-            {
-                label: 'Not Found',
-                icon: 'pi pi-fw pi-exclamation-circle',
-                to: '/pages/notfound'
-            },
-            {
-                label: 'Empty',
-                icon: 'pi pi-fw pi-circle-off',
-                to: '/pages/empty'
+            { label: 'My Letters', icon: 'pi pi-fw pi-envelope', to: '/letters' },
+            { label: 'Address Book', icon: 'pi pi-fw pi-map-marker', to: '/address-book' }
+        ]
+    },
+    {
+        label: 'Account',
+        items: [
+            { label: 'My Profile', icon: 'pi pi-fw pi-user', to: '/profile' },
+            { 
+                label: 'Logout', 
+                icon: 'pi pi-fw pi-sign-out', 
+                command: () => {
+                    authStore.logout().then(() => {
+                        window.location.href = '/auth/login';
+                    });
+                }
             }
         ]
     },
     {
-        label: 'Hierarchy',
+        label: 'Developer Resources',
         items: [
-            {
-                label: 'Submenu 1',
-                icon: 'pi pi-fw pi-bookmark',
-                items: [
-                    {
-                        label: 'Submenu 1.1',
-                        icon: 'pi pi-fw pi-bookmark',
-                        items: [
-                            { label: 'Submenu 1.1.1', icon: 'pi pi-fw pi-bookmark' },
-                            { label: 'Submenu 1.1.2', icon: 'pi pi-fw pi-bookmark' },
-                            { label: 'Submenu 1.1.3', icon: 'pi pi-fw pi-bookmark' }
-                        ]
-                    },
-                    {
-                        label: 'Submenu 1.2',
-                        icon: 'pi pi-fw pi-bookmark',
-                        items: [{ label: 'Submenu 1.2.1', icon: 'pi pi-fw pi-bookmark' }]
-                    }
-                ]
-            },
-            {
-                label: 'Submenu 2',
-                icon: 'pi pi-fw pi-bookmark',
-                items: [
-                    {
-                        label: 'Submenu 2.1',
-                        icon: 'pi pi-fw pi-bookmark',
-                        items: [
-                            { label: 'Submenu 2.1.1', icon: 'pi pi-fw pi-bookmark' },
-                            { label: 'Submenu 2.1.2', icon: 'pi pi-fw pi-bookmark' }
-                        ]
-                    },
-                    {
-                        label: 'Submenu 2.2',
-                        icon: 'pi pi-fw pi-bookmark',
-                        items: [{ label: 'Submenu 2.2.1', icon: 'pi pi-fw pi-bookmark' }]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        label: 'Get Started',
-        items: [
-            {
-                label: 'Documentation',
-                icon: 'pi pi-fw pi-book',
-                to: '/documentation'
-            },
-            {
-                label: 'View Source',
-                icon: 'pi pi-fw pi-github',
-                url: 'https://github.com/primefaces/sakai-vue',
-                target: '_blank'
-            }
+            // UI component examples (only for development)
+            { label: 'UI Components', icon: 'pi pi-fw pi-palette', to: '/uikit/formlayout' },
+            { label: 'Documentation', icon: 'pi pi-fw pi-book', to: '/documentation' }
         ]
     }
 ]);
@@ -141,6 +71,14 @@ const model = ref([
 
 <template>
     <ul class="layout-menu">
+        <div v-if="isAuthenticated" class="user-profile mb-4 p-3">
+            <div class="text-center">
+                <div class="avatar-circle mb-2">
+                    <span class="avatar-initials">{{ userName.split(' ').map(n => n[0]).join('') }}</span>
+                </div>
+                <div class="font-semibold">{{ userName }}</div>
+            </div>
+        </div>
         <template v-for="(item, i) in model" :key="item">
             <app-menu-item v-if="!item.separator" :item="item" :index="i"></app-menu-item>
             <li v-if="item.separator" class="menu-separator"></li>
@@ -148,4 +86,26 @@ const model = ref([
     </ul>
 </template>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.user-profile {
+    border-radius: 12px;
+    background-color: var(--surface-card);
+    
+    .avatar-circle {
+        background-color: var(--primary-color);
+        color: var(--primary-color-text);
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        
+        .avatar-initials {
+            font-size: 18px;
+            font-weight: 600;
+        }
+    }
+}
+</style>

@@ -92,4 +92,7 @@ Thumbs.db
 
 # Misc
 .vercel
-.netlify 
+.netlify
+
+# Sample code directory
+sample/ 
