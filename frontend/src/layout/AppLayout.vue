@@ -42,7 +42,7 @@ function bindOutsideClickListener() {
 
 function unbindOutsideClickListener() {
     if (outsideClickListener.value) {
-        document.removeEventListener('click', outsideClickListener);
+        document.removeEventListener('click', outsideClickListener.value);
         outsideClickListener.value = null;
     }
 }
@@ -69,3 +69,15 @@ function isOutsideClicked(event) {
     </div>
     <Toast />
 </template>
+
+<style>
+/* Add some dev mode styling to help see what's interactive */
+.dev-mode button, 
+.dev-mode a {
+    cursor: pointer !important;
+}
+
+.dev-mode .layout-mask {
+    display: none !important;
+}
+</style>

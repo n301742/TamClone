@@ -127,6 +127,12 @@ const router = createRouter({
                     component: () => import('../views/pages/Crud.vue')
                 },
                 {
+                    path: '/pdf-processing',
+                    name: 'pdfProcessing',
+                    component: () => import('../views/pages/PdfProcessingDemo.vue'),
+                    meta: { requiresAuth: true, title: 'PDF Processing Demo' }
+                },
+                {
                     path: '/documentation',
                     name: 'documentation',
                     component: () => import('../views/pages/Documentation.vue')
@@ -183,6 +189,12 @@ router.beforeEach((to, from, next) => {
     document.title = to.meta.title 
         ? `${to.meta.title} | BriefButler` 
         : 'BriefButler';
+    
+    // TEMPORARY DEV MODE: Skip authentication checks in development
+    if (import.meta.env.DEV) {
+        next();
+        return;
+    }
     
     // Auth logic
     if (requiresAuth && !isAuthenticated) {

@@ -1,3 +1,34 @@
 /* Tailwind CSS v4 with PrimeVue integration */
 @import "tailwindcss";
 @import "tailwindcss-primeui";
+
+/* Add custom utilities with !important to ensure they apply */
+.text-green-600 {
+  color: #16a34a !important;
+}
+  
+.text-yellow-600 {
+  color: #ca8a04 !important;
+}
+  
+.text-red-600 {
+  color: #dc2626 !important;
+}
+  
+.text-blue-500 {
+  color: #3b82f6 !important;
+}
+  
+/* Spacing Utilities */
+.mb-3 {
+  margin-bottom: 0.75rem !important;
+}
+  
+.mb-4 {
+  margin-bottom: 1rem !important;
+}
+  
+/* Width Utilities */
+.w-4 {
+  width: 1rem !important;
+}

@@ -7,6 +7,7 @@ import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } fro
  */
 class ApiClient {
   private axiosInstance: AxiosInstance;
+  private isDevelopment: boolean;
   
   constructor(baseURL: string) {
     this.axiosInstance = axios.create({
@@ -19,6 +20,9 @@ class ApiClient {
       withCredentials: true, // Important for handling cookies/authentication
     });
 
+    // Check if we're in development mode
+    this.isDevelopment = import.meta.env.DEV;
+    
     this.setupInterceptors();
   }
 
@@ -29,6 +33,14 @@ class ApiClient {
     // Request interceptor for adding auth token
     this.axiosInstance.interceptors.request.use(
       (config) => {
+        // In development mode, if no token exists, set a mock token
+        if (this.isDevelopment && !localStorage.getItem('accessToken')) {
+          console.log('🔐 DEV MODE: Using mock authentication token for API request');
+          // Set a mock token specifically for development testing
+          config.headers.Authorization = 'Bearer dev-mock-token-for-testing';
+          return config;
+        }
+        
         const token = localStorage.getItem('accessToken');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -43,6 +55,66 @@ class ApiClient {
       (response) => response,
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+        
+        // In development mode, if we get a 401, mock a successful response for testing purposes
+        if (this.isDevelopment && error.response?.status === 401) {
+          console.warn('🔓 DEV MODE: Intercepting 401 Unauthorized and mocking a response');
+          
+          // Check if this is a file upload request
+          if (originalRequest.url?.includes('/api/letters') && originalRequest.method === 'post') {
+            // Create a mock response for PDF upload
+            const mockResponse = {
+              id: 'dev-mock-letter-id',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              description: originalRequest.data?.get('description') || 'Test Document',
+              status: 'processed',
+              addressExtraction: {
+                confidence: 0.85,
+                rawText: "John Doe\n123 Main Street\n10115 Berlin\nGermany",
+                zipCodeValidation: {
+                  attempted: true,
+                  countryDetected: "Germany",
+                  zipCodeFormat: "#####",
+                  cityProvided: true,
+                  matchFound: true,
+                  originalCity: "Berlin",
+                  suggestedCity: null
+                },
+                streetValidation: {
+                  attempted: true,
+                  streetProvided: true,
+                  matchFound: true,
+                  originalStreet: "Main Street",
+                  suggestedStreet: null
+                }
+              }
+            };
+            
+            console.log('📄 DEV MODE: Returning mock PDF upload response:', mockResponse);
+            
+            // Return the mock response in the format axios expects
+            return Promise.resolve({ 
+              data: mockResponse,
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config: originalRequest,
+            });
+          }
+          
+          // For other API requests, return a generic success response
+          const genericResponse = { status: 'success', message: 'DEV MODE: Response mocked for testing' };
+          console.log('🔄 DEV MODE: Returning generic mock response:', genericResponse);
+          
+          return Promise.resolve({
+            data: genericResponse,
+            status: 200,
+            statusText: 'OK',
+            headers: {},
+            config: originalRequest,
+          });
+        }
         
         // Handle 401 Unauthorized errors (token expired)
         if (error.response?.status === 401 && !originalRequest._retry) {

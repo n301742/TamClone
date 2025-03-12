@@ -6,7 +6,10 @@ export default {
     content: [
         './index.html',
         './src/**/*.{vue,js,ts,jsx,tsx}',
-        './node_modules/primevue/**/*.{vue,js,ts,jsx,tsx}'
+        './node_modules/primevue/**/*.{vue,js,ts,jsx,tsx}',
+        // Add specific selectors for PrimeVue components that need Tailwind
+        './src/components/**/*.vue',
+        './src/views/**/*.vue'
     ],
     darkMode: ['class', '.app-dark'],
     theme: {
@@ -44,6 +47,16 @@ export default {
                 'surface-700': 'var(--surface-700)',
                 'surface-800': 'var(--surface-800)',
                 'surface-900': 'var(--surface-900)'
+            },
+            // Add border color variables
+            borderColor: {
+                'surface-0': 'var(--surface-0)',
+                'surface-50': 'var(--surface-50)',
+                'surface-100': 'var(--surface-100)',
+                'surface-200': 'var(--surface-200)',
+                'surface-300': 'var(--surface-300)',
+                'surface-400': 'var(--surface-400)',
+                'surface-500': 'var(--surface-500)'
             }
         },
     },
@@ -52,11 +65,28 @@ export default {
         PrimeUI({
             prefix: '',
             component: {
+                // Enable higher specificity for color application
                 color: 'primary',
                 dark: {
                     selector: '.app-dark'
                 }
+            },
+            // Important: Make Tailwind utility classes override PrimeVue styles
+            cssLayerName: 'components',
+            // Use higher specificity for Tailwind utilities
+            cssUtilities: {
+                important: true
             }
         })
     ],
+    // Add higher importance to certain utility classes
+    safelist: [
+        'text-green-600',
+        'text-yellow-600',
+        'text-red-600',
+        'text-blue-500',
+        'mb-3',
+        'mb-4',
+        'w-4'
+    ]
 } satisfies Config;

@@ -40,7 +40,8 @@ const model = ref<MenuGroup[]>([
         label: 'Mail Management',
         items: [
             { label: 'My Letters', icon: 'pi pi-fw pi-envelope', to: '/letters' },
-            { label: 'Address Book', icon: 'pi pi-fw pi-map-marker', to: '/address-book' }
+            { label: 'Address Book', icon: 'pi pi-fw pi-map-marker', to: '/address-book' },
+            { label: 'PDF Processing', icon: 'pi pi-fw pi-file-pdf', to: '/pdf-processing' }
         ]
     },
     {
