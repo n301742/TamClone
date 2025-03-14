@@ -15,29 +15,29 @@ const router = useRouter();
 // Check if API is connected
 const isApiConnected = computed(() => authStore.apiConnected);
 
-// Redirect to login if not authenticated
-const checkAuthentication = () => {
-  if (!authStore.isAuthenticated && isApiConnected.value) {
+// Check if user is authenticated and redirect if not
+const checkAuthentication = (): boolean => {
+  // If user is not authenticated, redirect to login
+  if (!authStore.isAuthenticated) {
+    // Redirect to login
+    router.push({ name: 'login' });
     toast.add({
-      severity: 'warn',
+      severity: 'info',
       summary: 'Authentication Required',
-      detail: 'Please log in to use the PDF processing features',
-      life: 5000
+      detail: 'Please log in to access this page',
+      life: 3000
     });
-    
-    router.push({
-      name: 'login',
-      query: { redirect: router.currentRoute.value.fullPath }
-    });
-    
-    return false;
+    return false; // User is not authenticated
   }
-  
-  return true;
+  return true; // User is authenticated
 };
 
 // Verify API connectivity when component mounts
 onMounted(async () => {
+  // First check authentication - redirect if not authenticated
+  if (!checkAuthentication()) return;
+  
+  // Then check API connectivity
   if (!isApiConnected.value) {
     await authStore.checkApiConnectivity();
     
@@ -50,9 +50,6 @@ onMounted(async () => {
       });
     }
   }
-  
-  // Check authentication after checking connectivity
-  checkAuthentication();
 });
 
 // Computed properties for styling
@@ -99,12 +96,46 @@ const handleAddressExtracted = (data: AddressExtraction) => {
   });
 };
 
-const handleUploadSuccess = (result: { id: string, addressExtraction?: AddressExtraction }) => {
+const handleUploadSuccess = (result: any) => {
   console.log('🎉 PdfProcessingDemo received upload success:', result);
-  uploadedLetterId.value = result.id;
   
-  if (result.addressExtraction) {
-    extractedAddress.value = result.addressExtraction;
+  let addressData = null;
+  let letterId = null;
+  
+  // Extract the relevant data based on the response structure
+  if (result) {
+    // If result has addressExtraction directly
+    if (result.addressExtraction) {
+      console.log('📋 Address extraction found directly in result');
+      addressData = result.addressExtraction;
+    }
+    // If result has a data property that contains addressExtraction
+    else if (result.data && result.data.addressExtraction) {
+      console.log('📋 Address extraction found in result.data');
+      addressData = result.data.addressExtraction;
+    }
+    
+    // Extract ID depending on where it's located
+    if (result.id) {
+      letterId = result.id;
+    } else if (result.data && result.data.id) {
+      letterId = result.data.id;
+    }
+  }
+  
+  console.log('🔍 Extracted address data:', addressData);
+  console.log('🔍 Extracted letter ID:', letterId);
+  
+  if (addressData) {
+    console.log('📋 Setting extractedAddress.value with:', JSON.stringify(addressData));
+    extractedAddress.value = addressData;
+    console.log('📋 extractedAddress.value after assignment:', extractedAddress.value);
+  } else {
+    console.warn('⚠️ No address extraction data found in any location of the result');
+  }
+  
+  if (letterId) {
+    uploadedLetterId.value = letterId;
   }
 };
 
@@ -117,6 +148,34 @@ const handleUploadError = (error: any) => {
 const handleFileSelected = () => {
   console.log('📄 PdfProcessingDemo: New file selected, resetting extraction data');
   extractedAddress.value = null;
+};
+
+// New function to extract address name
+const extractAddressName = (rawText: string): string => {
+  if (!rawText) return 'N/A';
+  
+  // Typically, the name is in the first line of the address
+  const lines = rawText.split('\n').filter(line => line.trim());
+  if (lines.length > 0) {
+    return lines[0].trim();
+  }
+  
+  return 'N/A';
+};
+
+// New function to extract ZIP
+const extractPostalCode = (rawText: string): string => {
+  if (!rawText) return 'N/A';
+  
+  // Regex to find German (5 digits) or Austrian (4 digits) ZIP codes
+  const postalCodeRegex = /\b(\d{4,5})\b/;
+  const match = rawText.match(postalCodeRegex);
+  
+  if (match && match[1]) {
+    return match[1];
+  }
+  
+  return 'N/A';
 };
 </script>
 
@@ -156,7 +215,7 @@ const handleFileSelected = () => {
               <ol class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
                 <li class="mb-2">Upload a PDF document containing an address in the standard format</li>
                 <li class="mb-2">Our system automatically extracts text from the address window area</li>
-                <li class="mb-2">The address components are parsed (name, street, postal code, city)</li>
+                <li class="mb-2">The address components are parsed (name, street, ZIP, city)</li>
                 <li class="mb-2">ZIP code and city are validated against our database</li>
                 <li class="mb-2">Street name is validated against available street data</li>
                 <li>A confidence score is calculated based on validation results</li>
@@ -179,7 +238,7 @@ const handleFileSelected = () => {
                 <li class="mb-2">Ensure the PDF is not password protected</li>
                 <li class="mb-2">Use standard letter formats with properly positioned address windows</li>
                 <li class="mb-2">For highest accuracy, use high-quality, non-scanned PDFs</li>
-                <li class="mb-2">The address should include postal code, city and country</li>
+                <li class="mb-2">The address should include ZIP, city and country</li>
                 <li>Avoid decorative fonts that might reduce OCR accuracy</li>
               </ul>
             </AccordionTab>
@@ -201,9 +260,30 @@ const handleFileSelected = () => {
           <Divider class="my-3" />
           
           <div class="mb-4">
-            <span class="block font-medium mb-2">Extracted Text:</span>
+            <span class="block font-medium mb-2">Extracted Address:</span>
             <div class="p-3 border-1 border-round surface-ground">
-              <pre class="m-0 font-medium text-color">{{ extractedAddress.rawText }}</pre>
+              <div class="address-details">
+                <div class="address-row">
+                  <span class="address-label">Name:</span>
+                  <span class="address-value">{{ extractedAddress.name || extractAddressName(extractedAddress.rawText) }}</span>
+                </div>
+                <div class="address-row">
+                  <span class="address-label">Street:</span>
+                  <span class="address-value">{{ extractedAddress.street || extractedAddress.streetValidation.originalStreet }}</span>
+                </div>
+                <div class="address-row">
+                  <span class="address-label">City:</span>
+                  <span class="address-value">{{ extractedAddress.city || extractedAddress.zipCodeValidation.originalCity }}</span>
+                </div>
+                <div class="address-row">
+                  <span class="address-label">ZIP:</span>
+                  <span class="address-value">{{ extractedAddress.postalCode || extractPostalCode(extractedAddress.rawText) }}</span>
+                </div>
+                <div class="address-row">
+                  <span class="address-label">Country:</span>
+                  <span class="address-value">{{ extractedAddress.country || extractedAddress.zipCodeValidation.countryDetected }}</span>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -367,5 +447,30 @@ pre {
 /* Custom width class for the extraction results */
 .w-85 {
   width: 85%;
+}
+
+/* Styles for the address details */
+.address-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.address-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.address-label {
+  font-weight: 600;
+  min-width: 6rem;
+  display: inline-block;
+  color: var(--text-color-secondary);
+}
+
+.address-value {
+  flex: 1;
+  font-family: var(--font-family);
 }
 </style> 
