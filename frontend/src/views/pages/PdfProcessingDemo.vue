@@ -65,6 +65,12 @@ const handleUploadError = (error: any) => {
   console.error('🛑 PdfProcessingDemo upload error:', error);
   uploadedLetterId.value = null;
 };
+
+// New handler for file selection to reset the address extraction data
+const handleFileSelected = () => {
+  console.log('📄 PdfProcessingDemo: New file selected, resetting extraction data');
+  extractedAddress.value = null;
+};
 </script>
 
 <template>
@@ -89,6 +95,7 @@ const handleUploadError = (error: any) => {
             @address-extracted="handleAddressExtracted"
             @upload-success="handleUploadSuccess" 
             @upload-error="handleUploadError"
+            @file-selected="handleFileSelected"
           />
         </div>
         
@@ -136,7 +143,7 @@ const handleUploadError = (error: any) => {
       <!-- Right Column: Address Extraction Results -->
       <div class="md:w-1/3 flex justify-content-end">
         <!-- Address Extraction Results (Moved from left column) -->
-        <div v-if="extractedAddress" class="card p-4 w-85 ml-auto">
+        <div v-if="extractedAddress" class="card p-4 w-full">
           <div class="flex align-items-center mb-3 relative">
             <h6 class="text-xl font-medium m-0">Address Extraction Results</h6>
             <Tag :value="confidencePercentage" 
@@ -215,12 +222,19 @@ const handleUploadError = (error: any) => {
         </div>
 
         <!-- Placeholder message when no address extraction results are available -->
-        <div v-if="!extractedAddress" class="card p-4 flex flex-column align-items-center justify-content-center" style="min-height: 300px;">
-          <i class="pi pi-search-plus text-6xl mb-4 text-color-secondary"></i>
-          <h6 class="text-xl font-medium mb-2 text-center">No Address Data Yet</h6>
-          <p class="text-color-secondary text-center">
-            Upload a PDF document to extract address information. The extracted data will appear here.
-          </p>
+        <div v-if="!extractedAddress" class="card p-4 w-full" style="min-height: 300px;">
+          <div class="flex flex-col items-center justify-center h-full space-y-4">
+            <i class="pi pi-search-plus text-6xl text-color-secondary"></i>
+            <div class="text-center">
+              <h6 class="text-xl font-medium mb-2">No Address Data Yet</h6>
+              <p class="text-color-secondary mb-2">
+                Upload a PDF document to extract address information.
+              </p>
+              <p class="text-color-secondary">
+                The extracted data will appear here.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,72 @@
+This is what I installed from scratch:
+
+1 Step: Vite + Vue-TS
+npm create vite@latest frontend -- --template vue-ts
+
+2 Step: Primevue
+npm install primevue @primevue/forms
+npm install @primeuix/themes
+npm install @primevue/forms
+npm install primeicons
+
+Alway check the most recent versions before installing any modules or components
+
+Install tailwind correctly
+https://tailwindcss.com/docs/installation/using-vite
+npm install tailwindcss @tailwindcss/vite
+npm i tailwindcss-primeui
+
+## PrimeVue + Tailwind Best Practices (2025)
+
+### Integration Approach
+- Use Tailwind utility classes for layout and spacing
+- Use PrimeVue components for UI elements (buttons, cards, forms)
+- Avoid custom CSS classes when possible
+- PrimeVue provides styling for components, Tailwind handles layout
+
+### Card Alignment Pattern
+For a consistent user experience, maintain the same card dimensions and positioning across different states:
+
+- Use identical width classes (`w-full`) for both empty and filled card states
+- Maintain consistent positioning to avoid layout shifts when content changes
+- Set a minimum height on placeholder states to ensure visual stability
+
+```vue
+<!-- Filled card state -->
+<div class="card p-4 w-full">
+  <!-- Card content when data is available -->
+</div>
+
+<!-- Empty/placeholder state with matching dimensions -->
+<div class="card p-4 w-full" style="min-height: 300px;">
+  <!-- Placeholder content -->
+</div>
+```
+
+This approach prevents jarring layout shifts when data loads, creating a smoother user experience. For containers that need right alignment, both states should use the same alignment classes (e.g., both using `ml-auto` if right alignment is needed).
+
+### Vertical Stacking Pattern
+When stacking text or UI elements vertically:
+```vue
+<div class="flex flex-col items-center justify-center space-y-4">
+  <i class="pi pi-search-plus text-6xl text-color-secondary"></i>
+  <div class="text-center">
+    <h6 class="text-xl font-medium mb-2">Title</h6>
+    <p class="text-color-secondary mb-2">First paragraph</p>
+    <p class="text-color-secondary">Second paragraph</p>
+  </div>
+</div>
+```
+
+Key techniques:
+- Use `flex flex-col` for vertical layout
+- Use `space-y-4` for consistent vertical spacing
+- Group related text in a container with `text-center`
+- Add `mb-2` between text elements for proper spacing
+- Use PrimeVue's text utility classes (`text-color-secondary`)
+
+### Common Issues and Solutions
+- Text appearing side-by-side: Make sure to use `flex-col` not `flex-row`
+- Elements not evenly spaced: Use `space-y-{size}` instead of individual margins
+- Content not centered: Combine `items-center justify-center` with `text-center`
+- Card layout issues: Set width with `w-full` and use `min-height` for consistent sizing 

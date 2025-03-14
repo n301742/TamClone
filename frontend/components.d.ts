@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     Accordion: typeof import('primevue/accordion')['default']
+    AccordionPanel: typeof import('primevue/accordionpanel')['default']
     AccordionTab: typeof import('primevue/accordiontab')['default']
     AutoComplete: typeof import('primevue/autocomplete')['default']
     Badge: typeof import('primevue/badge')['default']
