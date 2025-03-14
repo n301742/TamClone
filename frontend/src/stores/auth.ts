@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { authService } from '../services/api';
 import type { User, LoginRequest, RegisterRequest } from '../services/api';
+import apiClient from '../services/api/ApiClient';
 
 /**
  * Authentication store for managing user authentication state
@@ -11,6 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  const apiConnected = ref<boolean | null>(null);
 
   // Getters
   const isAuthenticated = computed(() => !!user.value || authService.isAuthenticated());
@@ -22,10 +24,37 @@ export const useAuthStore = defineStore('auth', () => {
   // Actions
   /**
    * Initialize the auth store by checking if user is logged in
+   * and verifying API connectivity
    */
   async function initialize() {
-    if (authService.isAuthenticated() && !user.value) {
-      await fetchCurrentUser();
+    loading.value = true;
+    
+    try {
+      // Check if API is reachable
+      apiConnected.value = await checkApiConnectivity();
+      
+      if (apiConnected.value && authService.isAuthenticated() && !user.value) {
+        await fetchCurrentUser();
+      }
+    } catch (err) {
+      console.error('Failed to initialize auth store:', err);
+      apiConnected.value = false;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Check if the backend API is available
+   */
+  async function checkApiConnectivity(): Promise<boolean> {
+    try {
+      await apiClient.isAvailable();
+      console.log('✅ API is connected and reachable');
+      return true;
+    } catch (err) {
+      console.warn('⚠️ API is not reachable:', err);
+      return false;
     }
   }
 
@@ -39,9 +68,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await authService.login(credentials);
       user.value = response.user;
+      apiConnected.value = true;
       return response;
     } catch (err: any) {
-      error.value = err.message || 'Login failed';
+      const errorMessage = err.response?.data?.message || err.message || 'Login failed';
+      error.value = errorMessage;
+      console.error('Login error:', errorMessage);
       throw err;
     } finally {
       loading.value = false;
@@ -119,6 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     loading,
     error,
+    apiConnected,
     
     // Getters
     isAuthenticated,
@@ -126,6 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
     
     // Actions
     initialize,
+    checkApiConnectivity,
     login,
     register,
     fetchCurrentUser,

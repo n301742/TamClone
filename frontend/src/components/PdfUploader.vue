@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, inject } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { pdfService, type AddressExtraction } from '../services/api';
+import { useAuthStore } from '../stores/auth';
 import PdfEmbed from 'vue-pdf-embed';
 
 const toast = useToast();
+const authStore = useAuthStore();
 
 // Props
 interface Props {
@@ -28,6 +30,7 @@ const emit = defineEmits<{
   (e: 'upload-success', result: { id: string, addressExtraction?: AddressExtraction }): void;
   (e: 'upload-error', error: any): void;
   (e: 'address-extracted', addressData: AddressExtraction): void;
+  (e: 'file-selected'): void;
 }>();
 
 // State
@@ -103,6 +106,9 @@ const onSelectedFiles = (event: any) => {
     pdfBlob.value = null;
     showPdfViewer.value = false;
   }
+  
+  // Emit file-selected event to notify parent components
+  emit('file-selected');
 };
 
 const onClear = () => {
@@ -146,6 +152,17 @@ const uploadEvent = async (uploadCallback: Function) => {
       summary: 'Invalid File',
       detail: 'Please select a valid PDF file.',
       life: 3000
+    });
+    return;
+  }
+
+  // Check authentication status if API is connected
+  if (authStore.apiConnected && !authStore.isAuthenticated) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Authentication Required',
+      detail: 'Please log in to upload and process PDF files.',
+      life: 5000
     });
     return;
   }

@@ -9,6 +9,7 @@ import './assets/style.scss';
 import App from './App.vue';
 import router from './router';
 import { createPinia } from 'pinia';
+import { useAuthStore } from './stores/auth';
 
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
@@ -40,5 +41,11 @@ app.use(PrimeVue, {
 });
 app.use(ToastService);
 app.use(ConfirmationService);
+
+// Initialize the auth store to check API connectivity and authentication status
+const authStore = useAuthStore();
+authStore.initialize().catch(err => {
+    console.error('Failed to initialize auth store:', err);
+});
 
 app.mount('#app');

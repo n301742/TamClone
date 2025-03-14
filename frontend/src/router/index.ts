@@ -190,11 +190,13 @@ router.beforeEach((to, from, next) => {
         ? `${to.meta.title} | BriefButler` 
         : 'BriefButler';
     
+    /* COMMENTED OUT DEV MODE BYPASS
     // TEMPORARY DEV MODE: Skip authentication checks in development
     if (import.meta.env.DEV) {
         next();
         return;
     }
+    */
     
     // Auth logic
     if (requiresAuth && !isAuthenticated) {

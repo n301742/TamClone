@@ -1,12 +1,59 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
+import { useAuthStore } from '../../stores/auth';
+import { useRouter } from 'vue-router';
 import PdfUploader from '../../components/PdfUploader.vue';
 import type { AddressExtraction } from '../../services/api';
 
 const extractedAddress = ref<AddressExtraction | null>(null);
 const uploadedLetterId = ref<string | null>(null);
 const toast = useToast();
+const authStore = useAuthStore();
+const router = useRouter();
+
+// Check if API is connected
+const isApiConnected = computed(() => authStore.apiConnected);
+
+// Redirect to login if not authenticated
+const checkAuthentication = () => {
+  if (!authStore.isAuthenticated && isApiConnected.value) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Authentication Required',
+      detail: 'Please log in to use the PDF processing features',
+      life: 5000
+    });
+    
+    router.push({
+      name: 'login',
+      query: { redirect: router.currentRoute.value.fullPath }
+    });
+    
+    return false;
+  }
+  
+  return true;
+};
+
+// Verify API connectivity when component mounts
+onMounted(async () => {
+  if (!isApiConnected.value) {
+    await authStore.checkApiConnectivity();
+    
+    if (!isApiConnected.value) {
+      toast.add({
+        severity: 'error',
+        summary: 'Connection Error',
+        detail: 'Unable to connect to the API. Using mock data for demonstration.',
+        life: 5000
+      });
+    }
+  }
+  
+  // Check authentication after checking connectivity
+  checkAuthentication();
+});
 
 // Computed properties for styling
 const confidenceColor = computed(() => {

@@ -230,6 +230,21 @@ class ApiClient {
     });
     return response.data;
   }
+
+  /**
+   * Check if the backend API is available
+   * @returns A promise resolving to true if available, false otherwise
+   */
+  public async isAvailable(): Promise<boolean> {
+    try {
+      // Try to ping the backend with a simple request
+      await this.axiosInstance.head('/', { timeout: 2000 });
+      return true;
+    } catch (error) {
+      console.warn('Backend API is not available:', error);
+      return false;
+    }
+  }
 }
 
 // Create and export a singleton instance with the API base URL
