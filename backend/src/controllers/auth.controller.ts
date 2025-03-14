@@ -172,14 +172,20 @@ export const googleCallback = (req: Request, res: Response) => {
   // Generate tokens
   const { accessToken, refreshToken } = generateTokens(user);
 
-  // Redirect to frontend with tokens
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  // Get redirect URI from query params or use default frontend URL
+  const redirectUri = req.query.redirect_uri as string || 
+    `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback`;
   
-  // Create a secure way to pass tokens to the frontend
-  // In production, you'd want to use a more secure method
-  const redirectUrl = `${frontendUrl}/auth/callback?token=${accessToken}`;
+  // Append token to the redirect URL
+  const redirectUrl = new URL(decodeURIComponent(redirectUri));
+  redirectUrl.searchParams.append('token', accessToken);
   
-  return res.redirect(redirectUrl);
+  // Save refresh token in a secure way - in a real production app, 
+  // you might want to set this in a secure, HTTP-only cookie
+  
+  console.log(`Redirecting to: ${redirectUrl.toString()}`);
+  
+  return res.redirect(redirectUrl.toString());
 };
 
 /**

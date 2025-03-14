@@ -8,6 +8,7 @@ import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } fro
 class ApiClient {
   private axiosInstance: AxiosInstance;
   private isDevelopment: boolean;
+  private useMockApi: boolean;
   
   constructor(baseURL: string) {
     this.axiosInstance = axios.create({
@@ -20,8 +21,9 @@ class ApiClient {
       withCredentials: true, // Important for handling cookies/authentication
     });
 
-    // Check if we're in development mode
+    // Check if we're in development mode and if mock API is enabled
     this.isDevelopment = import.meta.env.DEV;
+    this.useMockApi = import.meta.env.VITE_USE_MOCK_API === 'true';
     
     this.setupInterceptors();
   }
@@ -33,9 +35,9 @@ class ApiClient {
     // Request interceptor for adding auth token
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        // In development mode, if no token exists, set a mock token
-        if (this.isDevelopment && !localStorage.getItem('accessToken')) {
-          console.log('🔐 DEV MODE: Using mock authentication token for API request');
+        // Only use mock authentication if both in development mode AND mock API is enabled
+        if (this.isDevelopment && this.useMockApi && !localStorage.getItem('accessToken')) {
+          console.log('🔐 DEV MODE (MOCK API): Using mock authentication token for API request');
           // Set a mock token specifically for development testing
           config.headers.Authorization = 'Bearer dev-mock-token-for-testing';
           return config;
@@ -56,9 +58,9 @@ class ApiClient {
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
         
-        // In development mode, if we get a 401, mock a successful response for testing purposes
-        if (this.isDevelopment && error.response?.status === 401) {
-          console.warn('🔓 DEV MODE: Intercepting 401 Unauthorized and mocking a response');
+        // Only use mock responses if both in development mode AND mock API is enabled
+        if (this.isDevelopment && this.useMockApi && error.response?.status === 401) {
+          console.warn('🔓 DEV MODE (MOCK API): Intercepting 401 Unauthorized and mocking a response');
           
           // Check if this is a file upload request
           if (originalRequest.url?.includes('/api/letters') && originalRequest.method === 'post') {
@@ -91,7 +93,7 @@ class ApiClient {
               }
             };
             
-            console.log('📄 DEV MODE: Returning mock PDF upload response:', mockResponse);
+            console.log('📄 DEV MODE (MOCK API): Returning mock PDF upload response:', mockResponse);
             
             // Return the mock response in the format axios expects
             return Promise.resolve({ 
@@ -104,8 +106,8 @@ class ApiClient {
           }
           
           // For other API requests, return a generic success response
-          const genericResponse = { status: 'success', message: 'DEV MODE: Response mocked for testing' };
-          console.log('🔄 DEV MODE: Returning generic mock response:', genericResponse);
+          const genericResponse = { status: 'success', message: 'DEV MODE (MOCK API): Response mocked for testing' };
+          console.log('🔄 DEV MODE (MOCK API): Returning generic mock response:', genericResponse);
           
           return Promise.resolve({
             data: genericResponse,

@@ -19,6 +19,17 @@ interface BriefButlerResponse {
   status: string;
 }
 
+// Helper function to convert string booleans to actual booleans
+const convertToBoolean = (value: any, defaultValue = false): boolean => {
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
+  return Boolean(value);
+};
+
 /**
  * Create a new letter
  */
@@ -38,6 +49,12 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
       extractAddress, // New flag to indicate if we should extract address from PDF
       formType // Form type for address extraction
     } = req.body;
+    
+    // Convert boolean values from strings to actual booleans
+    const convertedIsExpress = convertToBoolean(isExpress);
+    const convertedIsRegistered = convertToBoolean(isRegistered);
+    const convertedIsColorPrint = convertToBoolean(isColorPrint);
+    const convertedIsDuplexPrint = convertToBoolean(isDuplexPrint, true); // Default to true
     
     console.log('Extract address flag:', extractAddress, typeof extractAddress);
     
@@ -111,7 +128,14 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
             matchFound: (extractedAddress as any).streetValidationDetails?.matchFound || false,
             originalStreet: (extractedAddress as any).streetValidationDetails?.originalStreet || extractedAddress.street || null,
             suggestedStreet: (extractedAddress as any).streetValidationDetails?.suggestedStreet || null
-          }
+          },
+          // Add the structured address fields
+          name: extractedAddress.name || '',
+          street: extractedAddress.street || '',
+          city: extractedAddress.city || '',
+          state: extractedAddress.state || '',
+          postalCode: extractedAddress.postalCode || '',
+          country: extractedAddress.country || ''
         };
         
         // Always use extracted address regardless of confidence
@@ -189,10 +213,10 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
         recipientZip: recipientData.postalCode,
         recipientCountry: recipientData.country,
         description,
-        isExpress: isExpress || false,
-        isRegistered: isRegistered || false,
-        isColorPrint: isColorPrint || false,
-        isDuplexPrint: isDuplexPrint !== undefined ? isDuplexPrint : true,
+        isExpress: convertedIsExpress,
+        isRegistered: convertedIsRegistered,
+        isColorPrint: convertedIsColorPrint,
+        isDuplexPrint: convertedIsDuplexPrint,
         status: LetterStatus.PROCESSING,
         statusHistory: {
           create: {
@@ -337,6 +361,12 @@ export const updateLetter = async (req: Request, res: Response, next: NextFuncti
       isDuplexPrint 
     } = req.body;
     
+    // Convert boolean values from strings to actual booleans
+    const convertedIsExpress = convertToBoolean(isExpress);
+    const convertedIsRegistered = convertToBoolean(isRegistered);
+    const convertedIsColorPrint = convertToBoolean(isColorPrint);
+    const convertedIsDuplexPrint = convertToBoolean(isDuplexPrint, true); // Default to true
+    
     const user = req.user as User;
 
     // Find the letter
@@ -410,10 +440,10 @@ export const updateLetter = async (req: Request, res: Response, next: NextFuncti
 
     // Update other fields if provided
     if (description !== undefined) updateData.description = description;
-    if (isExpress !== undefined) updateData.isExpress = isExpress;
-    if (isRegistered !== undefined) updateData.isRegistered = isRegistered;
-    if (isColorPrint !== undefined) updateData.isColorPrint = isColorPrint;
-    if (isDuplexPrint !== undefined) updateData.isDuplexPrint = isDuplexPrint;
+    if (isExpress !== undefined) updateData.isExpress = convertedIsExpress;
+    if (isRegistered !== undefined) updateData.isRegistered = convertedIsRegistered;
+    if (isColorPrint !== undefined) updateData.isColorPrint = convertedIsColorPrint;
+    if (isDuplexPrint !== undefined) updateData.isDuplexPrint = convertedIsDuplexPrint;
 
     // Update the letter
     const updatedLetter = await prisma.letter.update({

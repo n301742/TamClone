@@ -45,8 +45,14 @@ const handleLogin = async () => {
     // Success message
     toast.add({ severity: 'success', summary: 'Success', detail: 'Login successful', life: 3000 });
     
-    // Redirect to dashboard
-    router.push('/');
+    // Get redirect path from query params or default to dashboard
+    const redirectPath = typeof router.currentRoute.value.query.redirect === 'string' 
+      ? router.currentRoute.value.query.redirect 
+      : '/';
+    console.log('Redirecting to:', redirectPath);
+    
+    // Redirect to intended destination or dashboard
+    router.push(redirectPath);
   } catch (error: any) {
     // Show error message
     toast.add({ 
@@ -62,20 +68,27 @@ const handleLogin = async () => {
 
 /**
  * Handle Google login
- * This is a placeholder function. You will need to implement OAuth flow with Google
+ * Redirects to the backend's Google OAuth endpoint
  */
 const handleGoogleLogin = () => {
-  toast.add({ 
-    severity: 'info', 
-    summary: 'Google Login', 
-    detail: 'Google login functionality will be implemented in the next phase', 
-    life: 3000 
-  });
+  // Get the backend URL from environment variables
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
   
-  // TODO: Implement Google OAuth flow
-  // This would typically redirect to Google's OAuth endpoint
-  // On successful authentication, Google will redirect back to your app
-  // with an authorization code that you can exchange for an access token
+  // Current location to handle redirect back after authentication
+  const redirectUrl = encodeURIComponent(
+    window.location.origin + '/auth/callback' + 
+    (router.currentRoute.value.query.redirect 
+      ? `?redirect=${encodeURIComponent(router.currentRoute.value.query.redirect as string)}`
+      : '')
+  );
+  
+  // Create the Google auth URL with redirect parameter
+  const googleAuthUrl = `${apiBaseUrl}/api/auth/google?redirect_uri=${redirectUrl}`;
+  
+  console.log('Redirecting to Google authentication:', googleAuthUrl);
+  
+  // Redirect to Google login
+  window.location.href = googleAuthUrl;
 };
 </script>
 

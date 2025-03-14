@@ -25,9 +25,16 @@ router.post('/login', validateRequest(loginSchema), authController.login);
  * @desc Initiate Google OAuth flow
  * @access Public
  */
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
-}));
+router.get('/google', (req, res, next) => {
+  // Pass redirect_uri to state to ensure it persists through OAuth flow
+  const redirectUri = req.query.redirect_uri as string;
+  const state = redirectUri ? Buffer.from(JSON.stringify({ redirect_uri: redirectUri })).toString('base64') : undefined;
+  
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state
+  })(req, res, next);
+});
 
 /**
  * @route GET /api/auth/google/callback
@@ -35,7 +42,22 @@ router.get('/google', passport.authenticate('google', {
  * @access Public
  */
 router.get('/google/callback', 
-  passport.authenticate('google', { session: false }),
+  (req, res, next) => {
+    // Get state parameter to retrieve redirect_uri
+    const { state } = req.query;
+    if (state) {
+      try {
+        const decodedState = JSON.parse(Buffer.from(state as string, 'base64').toString());
+        if (decodedState.redirect_uri) {
+          req.query.redirect_uri = decodedState.redirect_uri;
+        }
+      } catch (error) {
+        console.error('Error parsing state parameter:', error);
+      }
+    }
+    
+    passport.authenticate('google', { session: false })(req, res, next);
+  },
   authController.googleCallback
 );
 

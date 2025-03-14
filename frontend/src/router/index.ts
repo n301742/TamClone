@@ -1,6 +1,7 @@
 import AppLayout from '../layout/AppLayout.vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { authService } from '../services/api';
+import { useAuthStore } from '../stores/auth';
 
 // Router type definitions
 export interface RouteMetaData {
@@ -167,6 +168,12 @@ const router = createRouter({
             component: () => import('../views/pages/auth/Access.vue')
         },
         {
+            path: '/auth/callback',
+            name: 'authCallback',
+            component: () => import('../views/pages/auth/AuthCallback.vue'),
+            meta: { title: 'Authentication Callback' }
+        },
+        {
             path: '/auth/error',
             name: 'error',
             component: () => import('../views/pages/auth/Error.vue')
@@ -179,36 +186,42 @@ const router = createRouter({
     ]
 });
 
-// Navigation guards
+// Navigation guard to handle authentication
 router.beforeEach((to, from, next) => {
-    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-    const guestOnly = to.matched.some(record => record.meta.guestOnly);
-    const isAuthenticated = authService.isAuthenticated();
-    
-    // Update document title
-    document.title = to.meta.title 
-        ? `${to.meta.title} | BriefButler` 
-        : 'BriefButler';
-    
-    /* COMMENTED OUT DEV MODE BYPASS
-    // TEMPORARY DEV MODE: Skip authentication checks in development
-    if (import.meta.env.DEV) {
-        next();
-        return;
-    }
-    */
-    
-    // Auth logic
-    if (requiresAuth && !isAuthenticated) {
-        // Redirect to login if trying to access protected route when not authenticated
-        next({ name: 'login', query: { redirect: to.fullPath } });
-    } else if (guestOnly && isAuthenticated) {
-        // Redirect to dashboard if trying to access guest-only routes when authenticated
-        next({ name: 'dashboard' });
-    } else {
-        // Proceed as normal
-        next();
-    }
+  const authStore = useAuthStore();
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+  const guestOnly = to.matched.some(record => record.meta.guestOnly);
+
+  // Debug info
+  console.log(`Route navigation: ${from.path} -> ${to.path}`);
+  console.log(`Requires auth: ${requiresAuth}, Is authenticated: ${authStore.isAuthenticated}`);
+  console.log(`Guest only: ${guestOnly}`);
+
+  // Update document title
+  document.title = to.meta.title 
+    ? `${to.meta.title} | BriefButler` 
+    : 'BriefButler';
+
+  // If route requires authentication and user is not authenticated
+  if (requiresAuth && !authStore.isAuthenticated) {
+    console.log('Authentication required, redirecting to login');
+    // Redirect to login page with intended destination
+    next({
+      name: 'login',
+      query: { redirect: to.fullPath }
+    });
+  } 
+  // If route is guest-only and user is authenticated
+  else if (guestOnly && authStore.isAuthenticated) {
+    console.log('Guest-only route, redirecting to dashboard');
+    // Redirect to dashboard
+    next({ name: 'dashboard' });
+  } 
+  // Otherwise proceed normally
+  else {
+    console.log('Authentication check passed or not required');
+    next();
+  }
 });
 
 export default router;

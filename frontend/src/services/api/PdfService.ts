@@ -88,19 +88,36 @@ class PdfService {
     console.log('📤 PdfService: Uploading file with options:', options);
     
     try {
-      const response = await apiClient.uploadFile<Letter & { addressExtraction?: AddressExtraction }>(
+      const response = await apiClient.uploadFile<any>(
         this.endpoint,
         formData
       );
       
       console.log('📥 PdfService: Received response:', response);
+      console.log('📥 PdfService: Response type:', typeof response);
+      console.log('📥 PdfService: Response structure:', JSON.stringify(response, null, 2));
+      
+      // Handle standard API response format where actual data is nested in a 'data' property
+      let letterData: Letter & { addressExtraction?: AddressExtraction };
+      
+      if (response.data && typeof response.data === 'object') {
+        console.log('📥 PdfService: Extracting data from response.data');
+        letterData = response.data;
+        
+        if (response.data.addressExtraction) {
+          console.log('📥 PdfService: Address extraction found in response.data');
+        }
+      } else {
+        console.log('📥 PdfService: Using response directly as letter data');
+        letterData = response;
+      }
       
       // Ensure the response contains the expected structure
-      if (import.meta.env.DEV && !response.addressExtraction && response.id === 'dev-mock-letter-id') {
+      if (import.meta.env.DEV && !letterData.addressExtraction && letterData.id === 'dev-mock-letter-id') {
         console.warn('⚠️ PdfService: Development mock data may not have the correct structure');
       }
       
-      return response;
+      return letterData;
     } catch (error) {
       console.error('❌ PdfService: Upload failed:', error);
       
@@ -193,7 +210,13 @@ class PdfService {
           matchFound: true,
           originalStreet: "Main Street",
           suggestedStreet: null
-        }
+        },
+        name: "John Doe",
+        street: "Main Street",
+        city: "Berlin",
+        state: "",
+        postalCode: "10115",
+        country: "Germany"
       }
     };
   }
@@ -207,6 +230,12 @@ export interface AddressExtraction {
   rawText: string;
   zipCodeValidation: ZipCodeValidation;
   streetValidation: StreetValidation;
+  name?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
 }
 
 export interface ZipCodeValidation {
