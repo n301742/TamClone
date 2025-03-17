@@ -98,8 +98,25 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
         }
         
         console.log(`Using form type: ${formType} (${addressFormType})`);
+
+        // First, detect if the PDF is text-based or a scanned image
+        const pdfTypeResult = await pdfProcessingService.detectPdfType(file.path);
+        console.log('PDF type detection result:', JSON.stringify(pdfTypeResult));
+
+        // If it's a scanned PDF, return an appropriate error
+        if (!pdfTypeResult.isTextBased) {
+          return res.status(422).json({
+            status: 'error',
+            message: 'Scanned PDF detected. This PDF appears to be a scanned image without extractable text.',
+            data: {
+              pdfType: 'scanned',
+              confidence: pdfTypeResult.confidence,
+              requiresOcr: true
+            }
+          });
+        }
         
-        // Pass the form type to the PDF processing service
+        // If PDF is text-based, proceed with address extraction
         const extractedAddress = await pdfProcessingService.extractAddressFromPdf(
           file.path,
           addressFormType

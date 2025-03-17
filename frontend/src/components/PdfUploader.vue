@@ -218,13 +218,35 @@ const uploadEvent = async (uploadCallback: Function) => {
 
   } catch (error: any) {
     console.error('❌ Upload error:', error);
-    toast.add({
-      severity: 'error',
-      summary: 'Upload Failed',
-      detail: error.response?.data?.message || 'Failed to upload the PDF file.',
-      life: 5000
-    });
-    emit('upload-error', error);
+    
+    // Check if this is a scanned PDF error (status 422 with requiresOcr flag)
+    if (error.response?.status === 422 && error.response?.data?.data?.requiresOcr) {
+      console.log('📑 Scanned PDF detected:', error.response.data);
+      
+      // Show a specific error message for scanned PDFs
+      toast.add({
+        severity: 'warn',
+        summary: 'Scanned PDF Detected',
+        detail: 'This appears to be a scanned document without extractable text. Address extraction requires a text-based PDF.',
+        life: 8000
+      });
+      
+      // Emit a specific error for scanned PDFs
+      emit('upload-error', {
+        type: 'scanned-pdf',
+        message: 'Scanned PDF detected',
+        details: error.response.data
+      });
+    } else {
+      // Regular error handling for other types of errors
+      toast.add({
+        severity: 'error',
+        summary: 'Upload Failed',
+        detail: error.response?.data?.message || 'Failed to upload the PDF file.',
+        life: 5000
+      });
+      emit('upload-error', error);
+    }
   } finally {
     isUploading.value = false;
     uploadProgress.value = 0;

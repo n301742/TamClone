@@ -15,6 +15,8 @@ import Tab from 'primevue/tab';
 
 const extractedAddress = ref<AddressExtraction | null>(null);
 const uploadedLetterId = ref<string | null>(null);
+const isScannedPdfDetected = ref(false);
+const scannedPdfError = ref<any>(null);
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
@@ -157,12 +159,33 @@ const handleUploadSuccess = (result: any) => {
 const handleUploadError = (error: any) => {
   console.error('🛑 PdfProcessingDemo upload error:', error);
   uploadedLetterId.value = null;
+  
+  // Check if this is a scanned PDF error
+  if (error.type === 'scanned-pdf') {
+    console.log('📑 Handling scanned PDF error:', error);
+    isScannedPdfDetected.value = true;
+    scannedPdfError.value = error;
+    
+    // Show a detailed toast with suggestions
+    toast.add({
+      severity: 'info',
+      summary: 'Address Extraction Not Available',
+      detail: 'We cannot extract data from scanned PDFs. Please try a text-based PDF or enter the address manually.',
+      life: 8000
+    });
+  } else {
+    // Reset scanned PDF flag for other errors
+    isScannedPdfDetected.value = false;
+    scannedPdfError.value = null;
+  }
 };
 
-// New handler for file selection to reset the address extraction data
+// New handler for file selection to reset the error state and address extraction data
 const handleFileSelected = () => {
   console.log('📄 PdfProcessingDemo: New file selected, resetting extraction data');
   extractedAddress.value = null;
+  isScannedPdfDetected.value = false;
+  scannedPdfError.value = null;
 };
 
 // New function to extract address name
@@ -375,7 +398,7 @@ const activeTabIndex = ref("0");
         </div>
 
         <!-- Placeholder message when no address extraction results are available -->
-        <div v-if="!extractedAddress" class="card p-4 w-full" style="min-height: 300px;">
+        <div v-if="!extractedAddress && !isScannedPdfDetected" class="card p-4 w-full" style="min-height: 300px;">
           <div class="flex flex-col items-center justify-center h-full space-y-4">
             <i class="pi pi-search-plus text-6xl text-color-secondary"></i>
             <div class="text-center">
@@ -387,6 +410,41 @@ const activeTabIndex = ref("0");
                 The extracted data will appear here.
               </p>
             </div>
+          </div>
+        </div>
+        
+        <!-- Scanned PDF error message -->
+        <div v-if="isScannedPdfDetected" class="card p-4 w-full" style="min-height: 300px;">
+          <div class="flex flex-col space-y-4">
+            <div class="flex items-center">
+              <i class="pi pi-file-pdf text-4xl text-yellow-500 mr-3"></i>
+              <h6 class="text-xl font-medium">Scanned PDF Detected</h6>
+            </div>
+            
+            <Divider />
+            
+            <p class="text-color-secondary mb-2">
+              This appears to be a scanned document without extractable text. Our system can only extract addresses from text-based PDFs.
+            </p>
+            
+            <div class="bg-yellow-50 p-3 border-round border-1 border-yellow-300">
+              <h6 class="font-medium text-yellow-700 mb-2">What's the difference?</h6>
+              <ul class="m-0 p-0 pl-4 text-yellow-700">
+                <li class="mb-2">
+                  <strong>Text-based PDFs</strong> are created directly from applications like Word, Excel, or other software that generate PDFs with actual text elements.
+                </li>
+                <li>
+                  <strong>Scanned PDFs</strong> are images of documents, so they don't contain actual text data that can be extracted.
+                </li>
+              </ul>
+            </div>
+            
+            <h6 class="font-medium mt-3">Alternatives:</h6>
+            <ul class="m-0 p-0 pl-4">
+              <li class="mb-2">Try uploading a text-based PDF instead of a scan</li>
+              <li class="mb-2">Enter the recipient address manually using the form</li>
+              <li>Select an address from your address book</li>
+            </ul>
           </div>
         </div>
       </div>

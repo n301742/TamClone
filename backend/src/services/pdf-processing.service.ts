@@ -120,6 +120,81 @@ export interface ExtractedAddress {
  */
 export class PdfProcessingService {
   /**
+   * Determine if a PDF contains extractable text or is just a scanned image
+   * @param filePath Path to the PDF file
+   * @returns Object indicating PDF type and confidence score
+   */
+  public async detectPdfType(filePath: string): Promise<{ 
+    isTextBased: boolean; 
+    confidence: number;
+    textContent?: string;
+    pageCount?: number;
+  }> {
+    try {
+      writeLog(`[PDF Processing] Detecting PDF type for: ${filePath}`);
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        writeLog(`[PDF Processing] File not found: ${filePath}`);
+        throw new Error('PDF file not found');
+      }
+      
+      // Read the PDF file
+      const pdfBuffer = fs.readFileSync(filePath);
+      
+      // Use pdf.js-extract to get text content
+      const pdfExtract = new PDFExtract();
+      const data = await pdfExtract.extractBuffer(pdfBuffer);
+      
+      // Check if any pages were extracted
+      if (!data || !data.pages || data.pages.length === 0) {
+        writeLog(`[PDF Processing] No pages found in PDF, likely an invalid or encrypted PDF`);
+        return { isTextBased: false, confidence: 0.9 };
+      }
+      
+      // Get the first page
+      const firstPage = data.pages[0];
+      
+      // Count total characters in the first page
+      let totalCharCount = 0;
+      let textContent = '';
+      
+      if (firstPage.content && Array.isArray(firstPage.content)) {
+        // Extract text from first page
+        textContent = firstPage.content
+          .map(item => item.str || '')
+          .join(' ')
+          .trim();
+        
+        totalCharCount = textContent.replace(/\s+/g, '').length;
+      }
+      
+      // Calculate confidence based on character count
+      // Higher character count = higher confidence it's a text-based PDF
+      const confidence = Math.min(0.95, Math.max(0.1, totalCharCount / 500));
+      
+      // Threshold for text-based classification: at least 50 non-whitespace characters
+      const isTextBased = totalCharCount > 50;
+      
+      writeLog(`[PDF Processing] PDF type detection results for ${filePath}:`);
+      writeLog(`  - Character count: ${totalCharCount}`);
+      writeLog(`  - Is text-based: ${isTextBased}`);
+      writeLog(`  - Confidence: ${(confidence * 100).toFixed(1)}%`);
+      
+      return { 
+        isTextBased,
+        confidence,
+        textContent: textContent || undefined,
+        pageCount: data.pages.length
+      };
+    } catch (error) {
+      writeLog(`[PDF Processing] Error detecting PDF type: ${error instanceof Error ? error.message : String(error)}`);
+      // Default to scanned if there's an error
+      return { isTextBased: false, confidence: 0.5 };
+    }
+  }
+
+  /**
    * Extract address from a PDF file using targeted extraction
    * @param filePath Path to the PDF file
    * @param formType Optional parameter to specify which form type to use (default: Form B)
