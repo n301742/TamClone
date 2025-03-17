@@ -6,6 +6,13 @@ import { useRouter } from 'vue-router';
 import PdfUploader from '../../components/PdfUploader.vue';
 import type { AddressExtraction } from '../../services/api';
 
+// Import Tab components separately
+import Tabs from 'primevue/tabs';
+import TabList from 'primevue/tablist';
+import TabPanels from 'primevue/tabpanels';
+import TabPanel from 'primevue/tabpanel';
+import Tab from 'primevue/tab';
+
 const extractedAddress = ref<AddressExtraction | null>(null);
 const uploadedLetterId = ref<string | null>(null);
 const toast = useToast();
@@ -99,6 +106,9 @@ const handleAddressExtracted = (data: AddressExtraction) => {
 const handleUploadSuccess = (result: any) => {
   console.log('🎉 PdfProcessingDemo received upload success:', result);
   
+  // Check if result has addressExtraction data
+  console.log('🔍 Result contains addressExtraction?', !!result.addressExtraction);
+  
   let addressData = null;
   let letterId = null;
   
@@ -108,7 +118,7 @@ const handleUploadSuccess = (result: any) => {
     if (result.addressExtraction) {
       console.log('📋 Address extraction found directly in result');
       addressData = result.addressExtraction;
-    }
+    } 
     // If result has a data property that contains addressExtraction
     else if (result.data && result.data.addressExtraction) {
       console.log('📋 Address extraction found in result.data');
@@ -118,20 +128,25 @@ const handleUploadSuccess = (result: any) => {
     // Extract ID depending on where it's located
     if (result.id) {
       letterId = result.id;
-    } else if (result.data && result.data.id) {
-      letterId = result.data.id;
+    } else if (result.data && result.data.letter && result.data.letter.id) {
+      letterId = result.data.letter.id;
     }
   }
   
-  console.log('🔍 Extracted address data:', addressData);
-  console.log('🔍 Extracted letter ID:', letterId);
-  
   if (addressData) {
-    console.log('📋 Setting extractedAddress.value with:', JSON.stringify(addressData));
+    console.log('📋 Setting extractedAddress.value with:', addressData);
     extractedAddress.value = addressData;
     console.log('📋 extractedAddress.value after assignment:', extractedAddress.value);
+    
+    // Show a toast notification
+    toast.add({
+      severity: 'success',
+      summary: 'Address Extracted',
+      detail: `Address extracted with ${confidencePercentage.value} confidence`,
+      life: 3000
+    });
   } else {
-    console.warn('⚠️ No address extraction data found in any location of the result');
+    console.warn('⚠️ No address extraction data in upload result');
   }
   
   if (letterId) {
@@ -177,6 +192,9 @@ const extractPostalCode = (rawText: string): string => {
   
   return 'N/A';
 };
+
+// Add activeTabIndex ref
+const activeTabIndex = ref("0");
 </script>
 
 <template>
@@ -209,40 +227,48 @@ const extractPostalCode = (rawText: string): string => {
         <div class="card p-4 mb-4">
           <h6 class="text-xl font-medium mb-3">Information</h6>
           
-          <!-- How It Works Section -->
-          <Accordion :activeIndex="0" class="mb-4">
-            <AccordionTab header="How It Works">
-              <ol class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
-                <li class="mb-2">Upload a PDF document containing an address in the standard format</li>
-                <li class="mb-2">Our system automatically extracts text from the address window area</li>
-                <li class="mb-2">The address components are parsed (name, street, ZIP, city)</li>
-                <li class="mb-2">ZIP code and city are validated against our database</li>
-                <li class="mb-2">Street name is validated against available street data</li>
-                <li>A confidence score is calculated based on validation results</li>
-              </ol>
-            </AccordionTab>
-            
-            <!-- Supported Formats Section -->
-            <AccordionTab header="Supported Formats">
-              <ul class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
-                <li class="mb-2">DIN 5008 Form A (German)</li>
-                <li class="mb-2">DIN 5008 Form B (German)</li>
-                <li class="mb-2">DIN 676 Type A (German/Austrian)</li>
-                <li class="mb-2">Formats with standard address window positioning</li>
-              </ul>
-            </AccordionTab>
-            
-            <!-- Tips Section -->
-            <AccordionTab header="Tips for Best Results">
-              <ul class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
-                <li class="mb-2">Ensure the PDF is not password protected</li>
-                <li class="mb-2">Use standard letter formats with properly positioned address windows</li>
-                <li class="mb-2">For highest accuracy, use high-quality, non-scanned PDFs</li>
-                <li class="mb-2">The address should include ZIP, city and country</li>
-                <li>Avoid decorative fonts that might reduce OCR accuracy</li>
-              </ul>
-            </AccordionTab>
-          </Accordion>
+          <!-- Replace Accordion with Tabs -->
+          <Tabs v-model:value="activeTabIndex">
+            <TabList>
+              <Tab value="0">How It Works</Tab>
+              <Tab value="1">Supported Formats</Tab>
+              <Tab value="2">Tips for Best Results</Tab>
+            </TabList>
+            <TabPanels>
+              <!-- How It Works Section -->
+              <TabPanel value="0">
+                <ol class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
+                  <li class="mb-2">Upload a PDF document containing an address in the standard format</li>
+                  <li class="mb-2">Our system automatically extracts text from the address window area</li>
+                  <li class="mb-2">The address components are parsed (name, street, ZIP, city)</li>
+                  <li class="mb-2">ZIP code and city are validated against our database</li>
+                  <li class="mb-2">Street name is validated against available street data</li>
+                  <li>A confidence score is calculated based on validation results</li>
+                </ol>
+              </TabPanel>
+              
+              <!-- Supported Formats Section -->
+              <TabPanel value="1">
+                <ul class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
+                  <li class="mb-2">DIN 5008 Form A (German)</li>
+                  <li class="mb-2">DIN 5008 Form B (German)</li>
+                  <li class="mb-2">DIN 676 Type A (German/Austrian)</li>
+                  <li class="mb-2">Formats with standard address window positioning</li>
+                </ul>
+              </TabPanel>
+              
+              <!-- Tips Section -->
+              <TabPanel value="2">
+                <ul class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
+                  <li class="mb-2">Ensure the PDF is not password protected</li>
+                  <li class="mb-2">Use standard letter formats with properly positioned address windows</li>
+                  <li class="mb-2">For highest accuracy, use high-quality, non-scanned PDFs</li>
+                  <li class="mb-2">The address should include ZIP, city and country</li>
+                  <li>Avoid decorative fonts that might reduce OCR accuracy</li>
+                </ul>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         </div>
       </div>
       

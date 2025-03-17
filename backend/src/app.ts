@@ -18,8 +18,8 @@ export const prisma = new PrismaClient();
 
 // Configure CORS with credentials
 const corsOptions = {
-  origin: 'http://localhost:5173', // Frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: ['http://localhost:5173', 'http://localhost:5174'], // Frontend URLs
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Length', 'Authorization'],
   credentials: true // Allow credentials
@@ -47,6 +47,11 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import letterRoutes from './routes/letter.routes';
 import addressBookRoutes from './routes/address-book.routes';
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'BriefButler API is running' });
+});
 
 // Register routes
 app.use('/api/auth', authRoutes);

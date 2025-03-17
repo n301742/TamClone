@@ -239,11 +239,11 @@ class ApiClient {
    */
   public async isAvailable(): Promise<boolean> {
     try {
-      // Try to ping the backend with a simple request
-      await this.axiosInstance.head('/', { timeout: 2000 });
+      // Use GET instead of HEAD request since we've added a proper health check endpoint
+      await this.axiosInstance.get('/');
       return true;
     } catch (error) {
-      console.warn('Backend API is not available:', error);
+      console.warn('Backend API is not available:', JSON.stringify(error));
       return false;
     }
   }
