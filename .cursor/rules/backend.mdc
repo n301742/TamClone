@@ -1,6 +1,6 @@
 ---
-description: This applies to the backend functionality and APIs provided. In particular the handling of PDF parsing and the standards of the supported documents
-globs: 
+description: 
+globs: backend/**/*
 alwaysApply: false
 ---
 

@@ -134,15 +134,15 @@ onMounted(() => {
           <div>
             <h2 class="text-lg font-semibold mb-4">User Information</h2>
             <div class="mb-4">
-              <div class="text-surface-600 dark:text-surface-400 text-sm mb-1">Name</div>
+              <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Name</div>
               <div class="font-medium">{{ user.firstName }} {{ user.lastName }}</div>
             </div>
             <div class="mb-4">
-              <div class="text-surface-600 dark:text-surface-400 text-sm mb-1">Email</div>
+              <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Email</div>
               <div class="font-medium">{{ user.email }}</div>
             </div>
             <div class="mb-4">
-              <div class="text-surface-600 dark:text-surface-400 text-sm mb-1">Account Created</div>
+              <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Account Created</div>
               <div class="font-medium">{{ formatDate(user.createdAt) }}</div>
             </div>
           </div>
@@ -150,20 +150,20 @@ onMounted(() => {
           <div>
             <h2 class="text-lg font-semibold mb-4">Account Statistics</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="p-4 bg-surface-50 dark:bg-surface-800 rounded-lg">
-                <div class="text-surface-600 dark:text-surface-400 text-sm mb-1">Total Letters</div>
+              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Letters</div>
                 <div class="text-xl font-bold">{{ 0 }}</div>
               </div>
-              <div class="p-4 bg-surface-50 dark:bg-surface-800 rounded-lg">
-                <div class="text-surface-600 dark:text-surface-400 text-sm mb-1">Addresses</div>
+              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Addresses</div>
                 <div class="text-xl font-bold">{{ 0 }}</div>
               </div>
-              <div class="p-4 bg-surface-50 dark:bg-surface-800 rounded-lg">
-                <div class="text-surface-600 dark:text-surface-400 text-sm mb-1">Letters Sent</div>
+              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Letters Sent</div>
                 <div class="text-xl font-bold">{{ 0 }}</div>
               </div>
-              <div class="p-4 bg-surface-50 dark:bg-surface-800 rounded-lg">
-                <div class="text-surface-600 dark:text-surface-400 text-sm mb-1">Letters Delivered</div>
+              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Letters Delivered</div>
                 <div class="text-xl font-bold">{{ 0 }}</div>
               </div>
             </div>
@@ -187,7 +187,7 @@ onMounted(() => {
             <div class="field">
               <label for="email" class="block font-medium mb-2">Email</label>
               <InputText id="email" v-model="profileForm.email" type="email" class="w-full" disabled />
-              <small class="text-surface-500">Email cannot be changed</small>
+              <small class="text-gray-500">Email cannot be changed</small>
             </div>
             
             <div class="flex gap-2 mt-6">
@@ -199,7 +199,7 @@ onMounted(() => {
       </div>
       
       <div v-else class="p-6 text-center">
-        <div class="text-xl text-surface-600 dark:text-surface-400">User profile not available</div>
+        <div class="text-xl text-gray-600 dark:text-gray-400">User profile not available</div>
       </div>
     </div>
   </div>
@@ -207,6 +207,13 @@ onMounted(() => {
 
 <style scoped>
 .card {
-  @apply bg-surface-0 dark:bg-surface-900 p-6 rounded-xl shadow-lg;
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+:deep(.dark) .card {
+  background-color: #111827;
 }
 </style> 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { pdfService, type AddressExtraction } from '../services/api';
 import { useAuthStore } from '../stores/auth';
@@ -30,7 +30,7 @@ const emit = defineEmits<{
   (e: 'upload-success', result: { id: string, addressExtraction?: AddressExtraction }): void;
   (e: 'upload-error', error: any): void;
   (e: 'address-extracted', addressData: AddressExtraction): void;
-  (e: 'file-selected'): void;
+  (e: 'file-selected', event: { files: File[] }): void;
 }>();
 
 // State
@@ -45,6 +45,13 @@ const totalSize = ref<number>(0);
 const pdfSource = ref<string | null>(null);
 const pdfBlob = ref<Blob | null>(null);
 const showPdfViewer = ref<boolean>(false);
+const formTypeInternal = ref(props.formType);
+
+// Watch for formType changes from the parent
+watch(() => props.formType, (newFormType) => {
+  formTypeInternal.value = newFormType;
+  console.log(`📝 Form type updated to: ${newFormType}`);
+});
 
 // Computed
 const maxFileSizeBytes = computed(() => props.maxFileSize * 1024 * 1024);
@@ -108,7 +115,7 @@ const onSelectedFiles = (event: any) => {
   }
   
   // Emit file-selected event to notify parent components
-  emit('file-selected');
+  emit('file-selected', { files: selectedFiles.value });
 };
 
 const onClear = () => {
@@ -182,7 +189,7 @@ const uploadEvent = async (uploadCallback: Function) => {
       fileToUpload,
       {
         description: description.value,
-        formType: props.formType,
+        formType: formTypeInternal.value,
         isDuplexPrint: props.isDuplexPrint,
         isColorPrint: props.isColorPrint
       }

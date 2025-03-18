@@ -287,11 +287,11 @@ const activeTabIndex = ref("0");
 </script>
 
 <template>
-  <div class="grid">
+  <div>
     <!-- PDF Processing Container -->
-    <div class="col-12">
-      <div class="card">
-        <div class="flex align-items-center justify-content-between mb-4">
+    <div class="card p-0">
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
           <h5 class="m-0">PDF Processing Demo</h5>
         </div>
         
@@ -301,7 +301,7 @@ const activeTabIndex = ref("0");
             <span>Form Standard Selection</span>
           </template>
           <template #content>
-            <div class="flex justify-content-center">
+            <div class="flex justify-center">
               <SelectButton 
                 v-model="selectedFormType"
                 :options="formTypeItems" 
@@ -310,7 +310,7 @@ const activeTabIndex = ref("0");
                 aria-labelledby="form-standard-selection"
               />
             </div>
-            <small class="block text-center text-color-secondary mt-3">
+            <small class="block text-center text-gray-500 mt-3">
               <i class="pi pi-info-circle mr-1"></i>
               Select the appropriate form standard for your document
               <span v-if="selectedFormType === 'custom'" class="block mt-2">
@@ -321,12 +321,12 @@ const activeTabIndex = ref("0");
           </template>
         </Card>
         
-        <!-- Main Content Grid -->
-        <div class="grid">
+        <!-- Main Content -->
+        <div class="flex flex-col md:flex-row gap-4">
           <!-- Left Column: PDF Upload -->
-          <div class="col-12 md:col-8">
+          <div class="w-full md:w-8/12">
             <!-- PDF Upload Section -->
-            <Card>
+            <Card class="h-full">
               <template #title>
                 Upload Document
               </template>
@@ -341,9 +341,9 @@ const activeTabIndex = ref("0");
                   :showPdfPreview="false"
                 />
                 
-                <!-- PDF Annotator Component (shows when a PDF is selected) -->
+                <!-- PDF Annotator Component -->
                 <div v-if="showAnnotator && pdfUrl" class="mt-4">
-                  <div class="flex justify-content-between align-items-center mb-2">
+                  <div class="flex justify-between items-center mb-2">
                     <h6 class="text-sm font-medium">Address Window Visualization</h6>
                     <Tag v-if="selectedFormType === 'custom'" severity="info" value="Custom Positioning Enabled" />
                   </div>
@@ -355,7 +355,7 @@ const activeTabIndex = ref("0");
                     @annotation-moved="handleAnnotationMoved"
                   />
                   
-                  <small class="block text-color-secondary mt-2">
+                  <small class="block text-gray-500 mt-2">
                     <i class="pi pi-info-circle mr-1"></i> 
                     This visualization shows where the address information will be extracted.
                     <span v-if="selectedFormType === 'custom'"> Drag the blue rectangle to reposition.</span>
@@ -365,7 +365,7 @@ const activeTabIndex = ref("0");
             </Card>
             
             <!-- Information Tabs -->
-            <Card class="mt-3">
+            <Card class="mt-4">
               <template #content>
                 <Tabs v-model:value="activeTabIndex">
                   <TabList>
@@ -376,7 +376,7 @@ const activeTabIndex = ref("0");
                   <TabPanels>
                     <!-- How It Works Section -->
                     <TabPanel value="0">
-                      <ol class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
+                      <ol class="m-0 p-0 pl-4 leading-7 text-gray-500">
                         <li class="mb-2">Upload a PDF document containing an address in the standard format</li>
                         <li class="mb-2">Our system automatically extracts text from the address window area</li>
                         <li class="mb-2">The address components are parsed (name, street, ZIP, city)</li>
@@ -388,7 +388,7 @@ const activeTabIndex = ref("0");
                     
                     <!-- Supported Formats Section -->
                     <TabPanel value="1">
-                      <ul class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
+                      <ul class="m-0 p-0 pl-4 leading-7 text-gray-500">
                         <li class="mb-2">DIN 5008 Form A (German)</li>
                         <li class="mb-2">DIN 5008 Form B (German)</li>
                         <li class="mb-2">DIN 676 Type A (German/Austrian)</li>
@@ -398,7 +398,7 @@ const activeTabIndex = ref("0");
                     
                     <!-- Tips Section -->
                     <TabPanel value="2">
-                      <ul class="m-0 p-0 pl-4 line-height-3 text-color-secondary">
+                      <ul class="m-0 p-0 pl-4 leading-7 text-gray-500">
                         <li class="mb-2">Ensure the PDF is not password protected</li>
                         <li class="mb-2">Use standard letter formats with properly positioned address windows</li>
                         <li class="mb-2">For highest accuracy, use high-quality, non-scanned PDFs</li>
@@ -413,11 +413,11 @@ const activeTabIndex = ref("0");
           </div>
           
           <!-- Right Column: Address Extraction Results -->
-          <div class="col-12 md:col-4">
+          <div class="w-full md:w-4/12">
             <!-- Address Extraction Results -->
             <Card v-if="extractedAddress" class="h-full">
               <template #title>
-                <div class="flex align-items-center justify-content-between">
+                <div class="flex items-center justify-between">
                   <span>Address Extraction Results</span>
                   <Tag :value="confidencePercentage" 
                     :severity="extractedAddress.confidence >= 0.8 ? 'success' : extractedAddress.confidence >= 0.5 ? 'warning' : 'danger'"
@@ -427,104 +427,98 @@ const activeTabIndex = ref("0");
               <template #content>
                 <div class="mb-4">
                   <span class="block font-medium mb-2">Extracted Address:</span>
-                  <div class="p-3 border-1 border-round surface-ground">
-                    <div class="address-details">
-                      <div class="address-row">
-                        <span class="address-label">Name:</span>
-                        <span class="address-value">{{ extractedAddress.name || extractAddressName(extractedAddress.rawText) }}</span>
+                  <div class="p-3 border border-gray-200 rounded bg-gray-50">
+                    <div class="flex flex-col gap-2">
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-gray-600">Name:</span>
+                        <span class="flex-1">{{ extractedAddress.name || extractAddressName(extractedAddress.rawText) }}</span>
                       </div>
-                      <div class="address-row">
-                        <span class="address-label">Street:</span>
-                        <span class="address-value">{{ extractedAddress.street || extractedAddress.streetValidation.originalStreet }}</span>
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-gray-600">Street:</span>
+                        <span class="flex-1">{{ extractedAddress.street || extractedAddress.streetValidation.originalStreet }}</span>
                       </div>
-                      <div class="address-row">
-                        <span class="address-label">City:</span>
-                        <span class="address-value">{{ extractedAddress.city || extractedAddress.zipCodeValidation.originalCity }}</span>
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-gray-600">City:</span>
+                        <span class="flex-1">{{ extractedAddress.city || extractedAddress.zipCodeValidation.originalCity }}</span>
                       </div>
-                      <div class="address-row">
-                        <span class="address-label">ZIP:</span>
-                        <span class="address-value">{{ extractedAddress.postalCode || extractPostalCode(extractedAddress.rawText) }}</span>
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-gray-600">ZIP:</span>
+                        <span class="flex-1">{{ extractedAddress.postalCode || extractPostalCode(extractedAddress.rawText) }}</span>
                       </div>
-                      <div class="address-row">
-                        <span class="address-label">Country:</span>
-                        <span class="address-value">{{ extractedAddress.country || extractedAddress.zipCodeValidation.countryDetected }}</span>
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-gray-600">Country:</span>
+                        <span class="flex-1">{{ extractedAddress.country || extractedAddress.zipCodeValidation.countryDetected }}</span>
                       </div>
                     </div>
                   </div>
                 </div>
                 
-                <div class="grid">
-                  <!-- ZIP Code Validation -->
-                  <div class="col-12">
-                    <Panel header="ZIP Code Validation" toggleable>
-                      <template #icons>
-                        <div class="flex align-items-center ml-auto">
-                          <i :class="zipValidIcon"></i>
-                        </div>
-                      </template>
-                      <div class="validation-content">
-                        <div class="validation-row">
-                          <span class="validation-label">Country:</span>
-                          <span class="validation-value">{{ extractedAddress.zipCodeValidation.countryDetected }}</span>
-                        </div>
-                        <div class="validation-row">
-                          <span class="validation-label">Format:</span>
-                          <span class="validation-value">{{ extractedAddress.zipCodeValidation.zipCodeFormat }}</span>
-                        </div>
-                        <div class="validation-row">
-                          <span class="validation-label">City:</span>
-                          <span class="validation-value">{{ extractedAddress.zipCodeValidation.originalCity }}</span>
-                        </div>
-                        
-                        <div v-if="extractedAddress.zipCodeValidation.suggestedCity && extractedAddress.zipCodeValidation.suggestedCity !== extractedAddress.zipCodeValidation.originalCity" class="suggestion-container">
-                          <div class="suggestion-content">
-                            <i class="pi pi-info-circle suggestion-icon"></i>
-                            <span class="suggestion-label">Suggested city:</span>
-                            <span class="suggestion-value">{{ extractedAddress.zipCodeValidation.suggestedCity }}</span>
-                          </div>
-                        </div>
+                <!-- ZIP Code Validation -->
+                <Panel header="ZIP Code Validation" toggleable class="mb-3">
+                  <template #icons>
+                    <div class="ml-auto">
+                      <i :class="zipValidIcon"></i>
+                    </div>
+                  </template>
+                  <div class="flex flex-col gap-2">
+                    <div class="flex items-center mb-2">
+                      <span class="font-medium w-16 inline-block">Country:</span>
+                      <span class="ml-2">{{ extractedAddress.zipCodeValidation.countryDetected }}</span>
+                    </div>
+                    <div class="flex items-center mb-2">
+                      <span class="font-medium w-16 inline-block">Format:</span>
+                      <span class="ml-2">{{ extractedAddress.zipCodeValidation.zipCodeFormat }}</span>
+                    </div>
+                    <div class="flex items-center mb-2">
+                      <span class="font-medium w-16 inline-block">City:</span>
+                      <span class="ml-2">{{ extractedAddress.zipCodeValidation.originalCity }}</span>
+                    </div>
+                    
+                    <div v-if="extractedAddress.zipCodeValidation.suggestedCity && extractedAddress.zipCodeValidation.suggestedCity !== extractedAddress.zipCodeValidation.originalCity" class="mt-2">
+                      <div class="flex items-center p-2 rounded bg-gray-100">
+                        <i class="pi pi-info-circle text-primary mr-2"></i>
+                        <span class="font-medium mr-2">Suggested city:</span>
+                        <span>{{ extractedAddress.zipCodeValidation.suggestedCity }}</span>
                       </div>
-                    </Panel>
+                    </div>
                   </div>
-                  
-                  <!-- Street Validation -->
-                  <div class="col-12 mt-3">
-                    <Panel header="Street Validation" toggleable>
-                      <template #icons>
-                        <div class="flex align-items-center ml-auto">
-                          <i :class="streetValidIcon"></i>
-                        </div>
-                      </template>
-                      <div class="validation-content">
-                        <div class="validation-row">
-                          <span class="validation-label">Street:</span>
-                          <span class="validation-value">{{ extractedAddress.streetValidation.originalStreet }}</span>
-                        </div>
-                        
-                        <div v-if="extractedAddress.streetValidation.suggestedStreet && extractedAddress.streetValidation.suggestedStreet !== extractedAddress.streetValidation.originalStreet" class="suggestion-container">
-                          <div class="suggestion-content">
-                            <i class="pi pi-info-circle suggestion-icon"></i>
-                            <span class="suggestion-label">Suggested street:</span>
-                            <span class="suggestion-value">{{ extractedAddress.streetValidation.suggestedStreet }}</span>
-                          </div>
-                        </div>
+                </Panel>
+                
+                <!-- Street Validation -->
+                <Panel header="Street Validation" toggleable>
+                  <template #icons>
+                    <div class="ml-auto">
+                      <i :class="streetValidIcon"></i>
+                    </div>
+                  </template>
+                  <div class="flex flex-col gap-2">
+                    <div class="flex items-center mb-2">
+                      <span class="font-medium w-16 inline-block">Street:</span>
+                      <span class="ml-2">{{ extractedAddress.streetValidation.originalStreet }}</span>
+                    </div>
+                    
+                    <div v-if="extractedAddress.streetValidation.suggestedStreet && extractedAddress.streetValidation.suggestedStreet !== extractedAddress.streetValidation.originalStreet" class="mt-2">
+                      <div class="flex items-center p-2 rounded bg-gray-100">
+                        <i class="pi pi-info-circle text-primary mr-2"></i>
+                        <span class="font-medium mr-2">Suggested street:</span>
+                        <span>{{ extractedAddress.streetValidation.suggestedStreet }}</span>
                       </div>
-                    </Panel>
+                    </div>
                   </div>
-                </div>
+                </Panel>
               </template>
             </Card>
           
             <!-- Placeholder message when no address extraction results are available -->
-            <Card v-if="!extractedAddress && !isScannedPdfDetected" class="h-full flex align-items-center justify-content-center" style="min-height: 300px;">
+            <Card v-if="!extractedAddress && !isScannedPdfDetected" class="h-full">
               <template #content>
-                <div class="flex flex-column align-items-center text-center">
-                  <i class="pi pi-search-plus text-6xl text-color-secondary mb-3"></i>
+                <div class="flex flex-col items-center justify-center text-center min-h-[300px]">
+                  <i class="pi pi-search-plus text-6xl text-gray-400 mb-3"></i>
                   <h6 class="text-xl font-medium mb-2">No Address Data Yet</h6>
-                  <p class="text-color-secondary mb-2">
+                  <p class="text-gray-500 mb-2">
                     Upload a PDF document to extract address information.
                   </p>
-                  <p class="text-color-secondary">
+                  <p class="text-gray-500">
                     The extracted data will appear here.
                   </p>
                 </div>
@@ -534,17 +528,17 @@ const activeTabIndex = ref("0");
             <!-- Scanned PDF error message -->
             <Card v-if="isScannedPdfDetected" class="h-full">
               <template #title>
-                <div class="flex align-items-center">
+                <div class="flex items-center">
                   <i class="pi pi-file-pdf text-2xl text-yellow-500 mr-2"></i>
                   <span>Scanned PDF Detected</span>
                 </div>
               </template>
               <template #content>
-                <p class="text-color-secondary mb-3">
+                <p class="text-gray-500 mb-3">
                   This appears to be a scanned document without extractable text. Our system can only extract addresses from text-based PDFs.
                 </p>
                 
-                <div class="bg-yellow-50 p-3 border-round border-1 border-yellow-300">
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-300">
                   <h6 class="font-medium text-yellow-700 mb-2">What's the difference?</h6>
                   <ul class="m-0 p-0 pl-4 text-yellow-700">
                     <li class="mb-2">
@@ -572,15 +566,7 @@ const activeTabIndex = ref("0");
 </template>
 
 <style scoped>
-/* Style for extracted text */
-pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: var(--font-family);
-  line-height: 1.5;
-}
-
-/* Validation icon styles */
+/* Use PrimeVue's text color classes instead of Tailwind's @apply */
 .validation-icon-success {
   color: var(--green-500);
   margin-right: 0.5rem;
@@ -589,76 +575,5 @@ pre {
 .validation-icon-error {
   color: var(--red-500);
   margin-right: 0.5rem;
-}
-
-/* Validation content styles */
-.validation-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.validation-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.validation-label {
-  font-weight: 500;
-  width: 4rem;
-  display: inline-block;
-}
-
-.validation-value {
-  margin-left: 0.5rem;
-}
-
-/* Suggestion styles */
-.suggestion-container {
-  margin-top: 0.5rem;
-}
-
-.suggestion-content {
-  display: flex;
-  align-items: center;
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-  background-color: var(--surface-100);
-}
-
-.suggestion-icon {
-  color: var(--primary-color);
-  margin-right: 0.5rem;
-}
-
-.suggestion-label {
-  font-weight: 500;
-  margin-right: 0.5rem;
-}
-
-/* Address details */
-.address-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.address-row {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 0.5rem;
-}
-
-.address-label {
-  font-weight: 600;
-  min-width: 6rem;
-  display: inline-block;
-  color: var(--text-color-secondary);
-}
-
-.address-value {
-  flex: 1;
-  font-family: var(--font-family);
 }
 </style> 

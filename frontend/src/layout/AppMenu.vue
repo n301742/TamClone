@@ -72,14 +72,6 @@ const model = ref<MenuGroup[]>([
 
 <template>
     <ul class="layout-menu">
-        <div v-if="isAuthenticated" class="user-profile mb-4 p-3">
-            <div class="text-center">
-                <div class="avatar-circle mb-2">
-                    <span class="avatar-initials">{{ userName.split(' ').map(n => n[0]).join('') }}</span>
-                </div>
-                <div class="font-semibold">{{ userName }}</div>
-            </div>
-        </div>
         <template v-for="(item, i) in model" :key="item">
             <app-menu-item v-if="!item.separator" :item="item" :index="i"></app-menu-item>
             <li v-if="item.separator" class="menu-separator"></li>
@@ -88,25 +80,5 @@ const model = ref<MenuGroup[]>([
 </template>
 
 <style lang="scss" scoped>
-.user-profile {
-    border-radius: 12px;
-    background-color: var(--surface-card);
-    
-    .avatar-circle {
-        background-color: var(--primary-color);
-        color: var(--primary-color-text);
-        border-radius: 50%;
-        width: 48px;
-        height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
-        
-        .avatar-initials {
-            font-size: 18px;
-            font-weight: 600;
-        }
-    }
-}
+/* Removed user-profile styles since they're no longer needed */
 </style>

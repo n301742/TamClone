@@ -49,6 +49,11 @@ lerna-debug.log*
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 *.swp
 *.swo
@@ -95,4 +100,7 @@ Thumbs.db
 .netlify
 
 # Sample code directory
-sample/ 
+sample/
+
+# Cursor browser tools
+browser-tools-mcp/ 

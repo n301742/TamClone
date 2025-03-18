@@ -17,12 +17,18 @@ import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
 import StyleClass from 'primevue/styleclass';
 
+// Import PrimeVue components
+import Avatar from 'primevue/avatar';
+
 // Create pinia instance
 const pinia = createPinia();
 const app = createApp(App);
 
 // Register StyleClass directive
 app.directive('styleclass', StyleClass);
+
+// Register global components
+app.component('Avatar', Avatar);
 
 // Register plugins
 app.use(router);

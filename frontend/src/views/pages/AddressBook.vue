@@ -321,6 +321,6 @@ onMounted(() => {
 
 <style scoped>
 .card {
-  @apply bg-surface-0 dark:bg-surface-900 p-6 rounded-xl shadow-lg;
+  @apply bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg;
 }
 </style> 

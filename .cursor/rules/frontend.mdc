@@ -1,8 +1,9 @@
 ---
-description: This applies to our frontend design and implementation approach
-globs: 
+description: 
+globs: frontend/**/*
 alwaysApply: false
 ---
+start all chats with a 🎨
 
 # Frontend
 - Vue 3 with Composition API
@@ -15,6 +16,7 @@ alwaysApply: false
 
 When using css styling always use Primevue's classes for Primevue components, for anything else use Tailwind css for consistency.
 Make sure you always use the use the newest versions and best parctice and check on the Web if you are not sure.
+Don't use any deprecated PrimeVue Components. Check https://primevue.org/ if you are not sure and remember to use PrimeVue styling for PrimeVue components and Tailwind Styling in the newest version for anything else.
 
 # PrimeVue v4 Styling Conventions
 

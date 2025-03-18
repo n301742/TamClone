@@ -1,7 +1,7 @@
 ---
-description: These are fundamental rueles how the AI Agent has to behave
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 start all chats with a 🤖
 

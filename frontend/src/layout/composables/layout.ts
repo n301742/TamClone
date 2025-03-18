@@ -56,6 +56,10 @@ export function useLayout() {
         }
     };
 
+    const toggleConfigurator = () => {
+        layoutState.configSidebarVisible = !layoutState.configSidebarVisible;
+    };
+
     const isSidebarActive = computed(() => layoutState.overlayMenuActive || layoutState.staticMenuMobileActive);
 
     const isDarkTheme = computed(() => layoutConfig.darkTheme);
@@ -67,12 +71,17 @@ export function useLayout() {
     return {
         layoutConfig,
         layoutState,
-        toggleMenu,
-        isSidebarActive,
+        setActiveMenuItem,
+        toggleDarkMode,
         isDarkTheme,
+        toggleMenu,
+        toggleConfigurator,
+        isSidebarActive,
         getPrimary,
         getSurface,
-        setActiveMenuItem,
-        toggleDarkMode
+        // Aliases for cleaner code
+        darkTheme: isDarkTheme,
+        mobileMenuActive: computed(() => layoutState.staticMenuMobileActive),
+        toggleMobileMenuActive: toggleMenu
     };
 }
