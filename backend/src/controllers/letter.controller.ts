@@ -19,6 +19,21 @@ interface BriefButlerResponse {
   status: string;
 }
 
+/**
+ * Interface for recipient data with name components and address
+ */
+interface RecipientData {
+  name: string;
+  firstName: string;
+  lastName: string;
+  academicTitle: string;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
 // Helper function to convert string booleans to actual booleans
 const convertToBoolean = (value: any, defaultValue = false): boolean => {
   if (value === undefined || value === null) {
@@ -71,8 +86,11 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
     console.log('File uploaded:', file.path);
 
     // If addressId is provided, get the address from the address book
-    let recipientData = {
+    let recipientData: RecipientData = {
       name: '',
+      firstName: '',
+      lastName: '',
+      academicTitle: '',
       address: '',
       city: '',
       state: '',
@@ -158,6 +176,9 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
         // Always use extracted address regardless of confidence
         recipientData = {
           name: extractedAddress.name || '',
+          firstName: extractedAddress.firstName || '',
+          lastName: extractedAddress.lastName || '',
+          academicTitle: extractedAddress.academicTitle || '',
           address: extractedAddress.street || '',
           city: extractedAddress.city || '',
           state: extractedAddress.state || '',
@@ -198,6 +219,9 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
 
       recipientData = {
         name: address.name,
+        firstName: address.firstName || '',
+        lastName: address.lastName || '',
+        academicTitle: address.academicTitle || '',
         address: address.address,
         city: address.city,
         state: address.state,
@@ -208,6 +232,9 @@ export const createLetter = async (req: Request, res: Response, next: NextFuncti
       // Use the provided recipient information (overrides extracted address)
       recipientData = {
         name: recipient.name,
+        firstName: recipient.firstName || '',
+        lastName: recipient.lastName || '',
+        academicTitle: recipient.academicTitle || '',
         address: recipient.street,
         city: recipient.city,
         state: recipient.state || '',

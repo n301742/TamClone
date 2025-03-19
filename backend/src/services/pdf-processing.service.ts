@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import fs from 'fs';
 import path from 'path';
 import { PDFExtract } from 'pdf.js-extract';
 import { zipValidationService } from './zip-validation.service';
 import { externalZipValidationService } from './external-zip-validation.service';
 import { streetValidationService } from './street-validation.service';
+import { parseName } from '../utils/name-parser';
 
 // Create a logs directory if it doesn't exist
 const logsDir = path.join(__dirname, '../../logs');
@@ -92,13 +94,16 @@ const DIN_676_TYPE_A = {
  */
 export interface ExtractedAddress {
   name?: string;
+  firstName?: string;
+  lastName?: string;
+  academicTitle?: string;
   street?: string;
   city?: string;
-  state?: string;
   postalCode?: string;
+  state?: string;
   country?: string;
   confidence: number;
-  rawText?: string;
+  rawText: string;
   zipValidationDetails?: {
     matchFound: boolean;
     originalCity?: string;
@@ -697,6 +702,25 @@ export class PdfProcessingService {
     if (nameLineIndex >= 0 && nameLineIndex < lines.length) {
       result.name = lines[nameLineIndex];
       writeLog(`[PDF Processing] Setting name to: "${result.name}"`);
+      
+      // Parse the name into components including academic title using our enhanced parser
+      if (result.name) {
+        const parsedName = parseName(result.name);
+        result.firstName = parsedName.firstName;
+        result.lastName = parsedName.lastName;
+        result.academicTitle = parsedName.academicTitle;
+        
+        writeLog(`[PDF Processing] Parsed name into components: 
+          firstName: "${result.firstName}", 
+          lastName: "${result.lastName}", 
+          academicTitle: "${result.academicTitle}" 
+          with confidence: ${parsedName.confidence}`);
+        
+        // If there were issues with parsing, log them
+        if (parsedName.issues && parsedName.issues.length > 0) {
+          writeLog(`[PDF Processing] Name parsing issues: ${parsedName.issues.join(', ')}`);
+        }
+      }
     }
     
     // Extract street
