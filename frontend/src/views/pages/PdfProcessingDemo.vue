@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router';
 import PdfUploader from '../../components/PdfUploader.vue';
 import PdfAnnotator from '../../components/PdfAnnotator.vue';
 import type { AddressExtraction } from '../../services/api';
+import nameParserService from '../../services/api/NameParserService';
 
 // Import PrimeVue components
 import Tabs from 'primevue/tabs';
@@ -20,6 +21,8 @@ import Divider from 'primevue/divider';
 import Tag from 'primevue/tag';
 import Card from 'primevue/card';
 import SelectButton from 'primevue/selectbutton';
+import Message from 'primevue/message';
+import Button from 'primevue/button';
 
 const extractedAddress = ref<AddressExtraction | null>(null);
 const uploadedLetterId = ref<string | null>(null);
@@ -99,94 +102,6 @@ const streetValidIcon = computed(() => {
     'pi pi-check-circle validation-icon-success' : 
     'pi pi-times-circle validation-icon-error';
 });
-
-const handleAddressExtracted = (data: AddressExtraction) => {
-  console.log('📬 PdfProcessingDemo received address extraction:', data);
-  extractedAddress.value = data;
-  
-  // Show a toast notification
-  toast.add({
-    severity: 'success',
-    summary: 'Address Extracted',
-    detail: `Address extracted with ${confidencePercentage.value} confidence`,
-    life: 3000
-  });
-};
-
-const handleUploadSuccess = (result: any) => {
-  console.log('🎉 PdfProcessingDemo received upload success:', result);
-  
-  // Check if result has addressExtraction data
-  console.log('🔍 Result contains addressExtraction?', !!result.addressExtraction);
-  
-  let addressData = null;
-  let letterId = null;
-  
-  // Extract the relevant data based on the response structure
-  if (result) {
-    // If result has addressExtraction directly
-    if (result.addressExtraction) {
-      console.log('📋 Address extraction found directly in result');
-      addressData = result.addressExtraction;
-    } 
-    // If result has a data property that contains addressExtraction
-    else if (result.data && result.data.addressExtraction) {
-      console.log('📋 Address extraction found in result.data');
-      addressData = result.data.addressExtraction;
-    }
-    
-    // Extract ID depending on where it's located
-    if (result.id) {
-      letterId = result.id;
-    } else if (result.data && result.data.letter && result.data.letter.id) {
-      letterId = result.data.letter.id;
-    }
-  }
-  
-  if (addressData) {
-    console.log('📋 Setting extractedAddress.value with:', addressData);
-    extractedAddress.value = addressData;
-    console.log('📋 extractedAddress.value after assignment:', extractedAddress.value);
-    
-    // Show a toast notification
-    toast.add({
-      severity: 'success',
-      summary: 'Address Extracted',
-      detail: `Address extracted with ${confidencePercentage.value} confidence`,
-      life: 3000
-    });
-  } else {
-    console.warn('⚠️ No address extraction data in upload result');
-  }
-  
-  if (letterId) {
-    uploadedLetterId.value = letterId;
-  }
-};
-
-const handleUploadError = (error: any) => {
-  console.error('🛑 PdfProcessingDemo upload error:', error);
-  uploadedLetterId.value = null;
-  
-  // Check if this is a scanned PDF error
-  if (error.type === 'scanned-pdf') {
-    console.log('📑 Handling scanned PDF error:', error);
-    isScannedPdfDetected.value = true;
-    scannedPdfError.value = error;
-    
-    // Show a detailed toast with suggestions
-    toast.add({
-      severity: 'info',
-      summary: 'Address Extraction Not Available',
-      detail: 'We cannot extract data from scanned PDFs. Please try a text-based PDF or enter the address manually.',
-      life: 8000
-    });
-  } else {
-    // Reset scanned PDF flag for other errors
-    isScannedPdfDetected.value = false;
-    scannedPdfError.value = null;
-  }
-};
 
 // Form type selection
 const selectedFormType = ref<'formA' | 'formB' | 'din676' | 'custom'>('formB');
@@ -284,6 +199,137 @@ const extractPostalCode = (rawText: string): string => {
 
 // Add activeTabIndex ref
 const activeTabIndex = ref("0");
+
+// Add a watcher to log the extracted address when it changes
+watch(extractedAddress, (newValue) => {
+  if (newValue) {
+    console.log('Extracted Address Data:', JSON.stringify(newValue, null, 2));
+  }
+}, { immediate: true });
+
+// Parse name using the backend service when components are missing
+const parseNameWithBackendService = async (nameValue: string) => {
+  if (!nameValue) return;
+  
+  try {
+    const parsedName = await nameParserService.parseName(nameValue);
+    
+    if (extractedAddress.value && parsedName) {
+      // Update the name components in the extracted address
+      if (parsedName.firstName) {
+        extractedAddress.value.firstName = parsedName.firstName;
+      }
+      
+      if (parsedName.lastName) {
+        extractedAddress.value.lastName = parsedName.lastName;
+      }
+      
+      if (parsedName.academicTitle) {
+        extractedAddress.value.academicTitle = parsedName.academicTitle;
+      }
+    }
+  } catch (error) {
+    console.error('Error parsing name:', error);
+  }
+};
+
+// Update the handleAddressExtracted function to parse name when needed
+const handleAddressExtracted = async (data: AddressExtraction) => {
+  extractedAddress.value = data;
+  
+  // If name components are missing but we have a name, parse it
+  if (data.name && (!data.firstName || !data.lastName)) {
+    await parseNameWithBackendService(data.name);
+  }
+  
+  // Show a toast notification
+  toast.add({
+    severity: 'success',
+    summary: 'Address Extracted',
+    detail: `Address extracted with ${confidencePercentage.value} confidence`,
+    life: 3000
+  });
+};
+
+const handleUploadSuccess = (result: any) => {
+  console.log('🎉 PdfProcessingDemo received upload success:', result);
+  
+  // Check if result has addressExtraction data
+  console.log('🔍 Result contains addressExtraction?', !!result.addressExtraction);
+  
+  let addressData = null;
+  let letterId = null;
+  
+  // Extract the relevant data based on the response structure
+  if (result) {
+    // If result has addressExtraction directly
+    if (result.addressExtraction) {
+      console.log('📋 Address extraction found directly in result');
+      addressData = result.addressExtraction;
+    } 
+    // If result has a data property that contains addressExtraction
+    else if (result.data && result.data.addressExtraction) {
+      console.log('📋 Address extraction found in result.data');
+      addressData = result.data.addressExtraction;
+    }
+    
+    // Extract ID depending on where it's located
+    if (result.id) {
+      letterId = result.id;
+    } else if (result.data && result.data.letter && result.data.letter.id) {
+      letterId = result.data.letter.id;
+    }
+  }
+  
+  if (addressData) {
+    console.log('📋 Setting extractedAddress.value with:', addressData);
+    extractedAddress.value = addressData;
+    console.log('📋 extractedAddress.value after assignment:', extractedAddress.value);
+    
+    // Show a toast notification
+    toast.add({
+      severity: 'success',
+      summary: 'Address Extracted',
+      detail: `Address extracted with ${confidencePercentage.value} confidence`,
+      life: 3000
+    });
+  } else {
+    console.warn('⚠️ No address extraction data in upload result');
+  }
+  
+  if (letterId) {
+    uploadedLetterId.value = letterId;
+  }
+};
+
+const handleUploadError = (error: any) => {
+  console.error('🛑 PdfProcessingDemo upload error:', error);
+  uploadedLetterId.value = null;
+  
+  // Check if this is a scanned PDF error
+  if (error.type === 'scanned-pdf') {
+    console.log('📑 Handling scanned PDF error:', error);
+    isScannedPdfDetected.value = true;
+    scannedPdfError.value = error;
+    
+    // Show a detailed toast with suggestions
+    toast.add({
+      severity: 'info',
+      summary: 'Address Extraction Not Available',
+      detail: 'We cannot extract data from scanned PDFs. Please try a text-based PDF or enter the address manually.',
+      life: 8000
+    });
+  } else {
+    // Reset scanned PDF flag for other errors
+    isScannedPdfDetected.value = false;
+    scannedPdfError.value = null;
+  }
+};
+
+// Add a new function to manually parse name components
+const manuallyParseNameWithBackend = async (name: string) => {
+  await parseNameWithBackendService(name);
+};
 </script>
 
 <template>
@@ -426,27 +472,51 @@ const activeTabIndex = ref("0");
               </template>
               <template #content>
                 <div class="mb-4">
-                  <span class="block font-medium mb-2">Extracted Address:</span>
-                  <div class="p-3 border border-gray-200 rounded bg-gray-50">
+                  <h3 class="text-base font-medium mb-2">Extracted Address:</h3>
+                  <div class="p-3 surface-card border-1 surface-border rounded-md">
                     <div class="flex flex-col gap-2">
                       <div class="flex items-start mb-2">
-                        <span class="font-semibold w-24 inline-block text-gray-600">Name:</span>
+                        <span class="font-semibold w-24 inline-block text-color">Name:</span>
                         <span class="flex-1">{{ extractedAddress.name || extractAddressName(extractedAddress.rawText) }}</span>
                       </div>
                       <div class="flex items-start mb-2">
-                        <span class="font-semibold w-24 inline-block text-gray-600">Street:</span>
+                        <span class="font-semibold w-24 inline-block text-color">First Name:</span>
+                        <span class="flex-1">{{ extractedAddress.firstName || "N/A" }}</span>
+                      </div>
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-color">Last Name:</span>
+                        <span class="flex-1">{{ extractedAddress.lastName || "N/A" }}</span>
+                      </div>
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-color">Title:</span>
+                        <span class="flex-1">{{ extractedAddress.academicTitle || "N/A" }}</span>
+                      </div>
+                      
+                      <!-- Add this button to directly parse the name -->
+                      <div v-if="extractedAddress.name && (!extractedAddress.firstName || !extractedAddress.lastName)">
+                        <Button 
+                          label="Parse Name Components" 
+                          icon="pi pi-refresh" 
+                          severity="info" 
+                          @click="manuallyParseNameWithBackend(extractedAddress.name)"
+                          class="mt-2 mb-3 w-full p-button-sm"
+                        />
+                      </div>
+                      
+                      <div class="flex items-start mb-2">
+                        <span class="font-semibold w-24 inline-block text-color">Street:</span>
                         <span class="flex-1">{{ extractedAddress.street || extractedAddress.streetValidation.originalStreet }}</span>
                       </div>
                       <div class="flex items-start mb-2">
-                        <span class="font-semibold w-24 inline-block text-gray-600">City:</span>
+                        <span class="font-semibold w-24 inline-block text-color">City:</span>
                         <span class="flex-1">{{ extractedAddress.city || extractedAddress.zipCodeValidation.originalCity }}</span>
                       </div>
                       <div class="flex items-start mb-2">
-                        <span class="font-semibold w-24 inline-block text-gray-600">ZIP:</span>
+                        <span class="font-semibold w-24 inline-block text-color">ZIP:</span>
                         <span class="flex-1">{{ extractedAddress.postalCode || extractPostalCode(extractedAddress.rawText) }}</span>
                       </div>
                       <div class="flex items-start mb-2">
-                        <span class="font-semibold w-24 inline-block text-gray-600">Country:</span>
+                        <span class="font-semibold w-24 inline-block text-color">Country:</span>
                         <span class="flex-1">{{ extractedAddress.country || extractedAddress.zipCodeValidation.countryDetected }}</span>
                       </div>
                     </div>
@@ -475,11 +545,12 @@ const activeTabIndex = ref("0");
                     </div>
                     
                     <div v-if="extractedAddress.zipCodeValidation.suggestedCity && extractedAddress.zipCodeValidation.suggestedCity !== extractedAddress.zipCodeValidation.originalCity" class="mt-2">
-                      <div class="flex items-center p-2 rounded bg-gray-100">
-                        <i class="pi pi-info-circle text-primary mr-2"></i>
-                        <span class="font-medium mr-2">Suggested city:</span>
-                        <span>{{ extractedAddress.zipCodeValidation.suggestedCity }}</span>
-                      </div>
+                      <Message severity="info" class="w-full p-0">
+                        <div class="flex items-center p-2">
+                          <span class="font-medium mr-2">Suggested city:</span>
+                          <span>{{ extractedAddress.zipCodeValidation.suggestedCity }}</span>
+                        </div>
+                      </Message>
                     </div>
                   </div>
                 </Panel>
@@ -498,11 +569,12 @@ const activeTabIndex = ref("0");
                     </div>
                     
                     <div v-if="extractedAddress.streetValidation.suggestedStreet && extractedAddress.streetValidation.suggestedStreet !== extractedAddress.streetValidation.originalStreet" class="mt-2">
-                      <div class="flex items-center p-2 rounded bg-gray-100">
-                        <i class="pi pi-info-circle text-primary mr-2"></i>
-                        <span class="font-medium mr-2">Suggested street:</span>
-                        <span>{{ extractedAddress.streetValidation.suggestedStreet }}</span>
-                      </div>
+                      <Message severity="info" class="w-full p-0">
+                        <div class="flex items-center p-2">
+                          <span class="font-medium mr-2">Suggested street:</span>
+                          <span>{{ extractedAddress.streetValidation.suggestedStreet }}</span>
+                        </div>
+                      </Message>
                     </div>
                   </div>
                 </Panel>
@@ -513,12 +585,12 @@ const activeTabIndex = ref("0");
             <Card v-if="!extractedAddress && !isScannedPdfDetected" class="h-full">
               <template #content>
                 <div class="flex flex-col items-center justify-center text-center min-h-[300px]">
-                  <i class="pi pi-search-plus text-6xl text-gray-400 mb-3"></i>
+                  <i class="pi pi-search-plus text-6xl text-gray-400 dark:text-gray-600 mb-3"></i>
                   <h6 class="text-xl font-medium mb-2">No Address Data Yet</h6>
-                  <p class="text-gray-500 mb-2">
+                  <p class="text-gray-500 dark:text-gray-400 mb-2">
                     Upload a PDF document to extract address information.
                   </p>
-                  <p class="text-gray-500">
+                  <p class="text-gray-500 dark:text-gray-400">
                     The extracted data will appear here.
                   </p>
                 </div>
@@ -534,24 +606,26 @@ const activeTabIndex = ref("0");
                 </div>
               </template>
               <template #content>
-                <p class="text-gray-500 mb-3">
+                <p class="text-color-secondary mb-3">
                   This appears to be a scanned document without extractable text. Our system can only extract addresses from text-based PDFs.
                 </p>
                 
-                <div class="bg-yellow-50 p-3 rounded border border-yellow-300">
-                  <h6 class="font-medium text-yellow-700 mb-2">What's the difference?</h6>
-                  <ul class="m-0 p-0 pl-4 text-yellow-700">
-                    <li class="mb-2">
-                      <strong>Text-based PDFs</strong> are created directly from applications like Word, Excel, or other software that generate PDFs with actual text elements.
-                    </li>
-                    <li>
-                      <strong>Scanned PDFs</strong> are images of documents, so they don't contain actual text data that can be extracted.
-                    </li>
-                  </ul>
-                </div>
+                <Message severity="warn" class="w-full mb-3">
+                  <div class="p-2">
+                    <h6 class="font-medium text-yellow-900 dark:text-yellow-100 mb-2">What's the difference?</h6>
+                    <ul class="m-0 p-0 pl-4 text-yellow-800 dark:text-yellow-200">
+                      <li class="mb-2">
+                        <strong>Text-based PDFs</strong> are created directly from applications like Word, Excel, or other software that generate PDFs with actual text elements.
+                      </li>
+                      <li>
+                        <strong>Scanned PDFs</strong> are images of documents, so they don't contain actual text data that can be extracted.
+                      </li>
+                    </ul>
+                  </div>
+                </Message>
                 
                 <h6 class="font-medium mt-3 mb-2">Alternatives:</h6>
-                <ul class="m-0 p-0 pl-4">
+                <ul class="m-0 p-0 pl-4 text-color-secondary">
                   <li class="mb-2">Try uploading a text-based PDF instead of a scan</li>
                   <li class="mb-2">Enter the recipient address manually using the form</li>
                   <li>Select an address from your address book</li>

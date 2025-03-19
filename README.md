@@ -123,4 +123,54 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [BriefButler API](https://developers.briefbutler.com) for letter delivery services
 - [PrimeVue](https://primevue.org/) for UI components
 - [Tailwind CSS](https://tailwindcss.com/) for styling
-- [Vue.js](https://vuejs.org/) for the frontend framework 
+- [Vue.js](https://vuejs.org/) for the frontend framework
+
+## Name Parsing Utility
+
+The application includes a robust name parsing utility that can intelligently split full names into first and last name components. This is especially useful when extracting recipient information from PDF documents.
+
+### Features:
+
+- Handles various name formats (simple, compound, with titles, etc.)
+- Recognizes common prefixes and titles (Dr., Prof., Herr, Frau, etc.)
+- Supports international name formats, including nobility prefixes (von, van, etc.)
+- Handles comma-separated formats (LastName, FirstName)
+- Provides confidence scoring to indicate parsing quality
+- Identifies potential issues during parsing
+
+### Usage:
+
+```typescript
+import { parseNameField } from './utils/name-parser';
+
+// Simple usage
+const result = parseNameField('John Doe');
+console.log(result.firstName); // "John"
+console.log(result.lastName);  // "Doe"
+
+// With titles
+const withTitle = parseNameField('Dr. Jane Smith');
+console.log(withTitle.firstName); // "Jane"
+console.log(withTitle.lastName);  // "Smith"
+
+// With nobility prefixes
+const noble = parseNameField('Ludwig von Beethoven');
+console.log(noble.firstName); // "Ludwig"
+console.log(noble.lastName);  // "von Beethoven"
+
+// With comma notation
+const comma = parseNameField('Müller, Hans');
+console.log(comma.firstName); // "Hans"
+console.log(comma.lastName);  // "Müller"
+```
+
+### Command-line Demo:
+
+Test the name parser from the command line:
+
+```bash
+cd backend
+npx ts-node src/scripts/name-parser-demo.ts "Johann Sebastian Bach"
+```
+
+This will output the parsed name components along with confidence score and any potential issues detected. 

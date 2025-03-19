@@ -118,6 +118,9 @@ model AddressBook {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
+  firstName       String?
+  lastName        String?
+  academicTitle   String?
   address         String
   city            String
   state           String

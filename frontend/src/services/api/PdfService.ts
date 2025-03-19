@@ -212,6 +212,9 @@ class PdfService {
           suggestedStreet: null
         },
         name: "John Doe",
+        firstName: "John",
+        lastName: "Doe",
+        academicTitle: "",
         street: "Main Street",
         city: "Berlin",
         state: "",
@@ -231,6 +234,9 @@ export interface AddressExtraction {
   zipCodeValidation: ZipCodeValidation;
   streetValidation: StreetValidation;
   name?: string;
+  firstName?: string;
+  lastName?: string;
+  academicTitle?: string;
   street?: string;
   city?: string;
   state?: string;

@@ -13,7 +13,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "seed": "ts-node src/utils/seed.ts"
+    "seed": "ts-node src/utils/seed.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix"
   },
   "keywords": [
     "express",
@@ -38,6 +40,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "node-tesseract-ocr": "^2.2.1",
+    "parse-full-name": "^1.2.6",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
@@ -49,6 +52,7 @@
     "punycode": "^2.3.1",
     "tesseract.js": "^6.0.0",
     "uuid": "^11.1.0",
+    "winston": "^3.17.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -61,6 +65,7 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^20.17.19",
+    "@types/parse-full-name": "^1.2.5",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.16",
     "@types/passport-jwt": "^4.0.1",
@@ -68,6 +73,9 @@
     "@types/pdf-parse": "^1.1.4",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.26.1",
+    "eslint": "^9.22.0",
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
     "supertest": "^6.3.4",

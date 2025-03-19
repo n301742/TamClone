@@ -4,6 +4,7 @@ export { default as authService } from './AuthService';
 export { default as letterService } from './LetterService';
 export { default as addressBookService } from './AddressBookService';
 export { default as pdfService } from './PdfService';
+export { default as nameParserService } from './NameParserService';
 
 // Export all types
 export * from './types';

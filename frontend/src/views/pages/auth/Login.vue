@@ -141,8 +141,8 @@ const handleGoogleLogin = () => {
             <div class="field-checkbox">
               <Checkbox id="rememberMe" v-model="rememberMe" :binary="true" />
               <label for="rememberMe" class="ml-2 cursor-pointer">Remember me</label>
-            </div>
-            
+                    </div>
+
             <router-link to="/auth/forgot-password" class="text-primary hover:underline">
               Forgot password?
             </router-link>
@@ -159,7 +159,7 @@ const handleGoogleLogin = () => {
             <Divider align="center" type="solid" borderType="dashed">
               <span class="text-xs uppercase text-surface-500 dark:text-surface-400">or continue with</span>
             </Divider>
-          </div>
+                            </div>
           
           <Button 
             type="button" 
@@ -177,12 +177,12 @@ const handleGoogleLogin = () => {
             <router-link to="/auth/register" class="text-primary font-medium hover:underline">
               Register
             </router-link>
-          </div>
+                        </div>
         </form>
-      </div>
+        </div>
     </div>
     <FloatingConfigurator />
-  </div>
+    </div>
 </template>
 
 <style scoped>

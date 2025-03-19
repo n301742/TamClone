@@ -47,6 +47,8 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import letterRoutes from './routes/letter.routes';
 import addressBookRoutes from './routes/address-book.routes';
+import utilsRoutes from './routes/api.routes';
+import briefButlerRoutes from './routes/brief-butler.routes';
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -58,6 +60,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/letters', letterRoutes);
 app.use('/api/address-book', addressBookRoutes);
+app.use('/api', utilsRoutes);
+app.use('/api/brief-butler', briefButlerRoutes);
 
 // Health check endpoints
 app.get('/health', (req, res) => {
