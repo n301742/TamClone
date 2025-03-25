@@ -21,6 +21,12 @@ router.post('/cancel/:trackingId', briefButlerController.cancelLetter);
 // Get user profiles
 router.get('/profiles/:userId', briefButlerController.getUserProfiles);
 
+// Submit a document to the BriefButler spool service
+router.post('/spool', briefButlerController.submitSpool);
+
+// Get status of a spool submission
+router.get('/spool/status/:spoolId', briefButlerController.getSpoolStatus);
+
 // Add test route for mock mode
 router.get('/test-mock', (req, res) => {
   // Try to enable mock mode
@@ -46,5 +52,8 @@ router.get('/test-mock', (req, res) => {
       briefButlerService.disableMockMode();
     });
 });
+
+// Add a test route for the spool service
+router.post('/spool/test', briefButlerController.testSpoolService);
 
 export default router; 

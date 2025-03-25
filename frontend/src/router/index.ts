@@ -134,6 +134,12 @@ const router = createRouter({
                     meta: { requiresAuth: true, title: 'PDF Processing Demo' }
                 },
                 {
+                    path: '/document-upload',
+                    name: 'documentUpload',
+                    component: () => import('../views/DocumentUploadView.vue'),
+                    meta: { requiresAuth: true, title: 'Document Upload Workflow' }
+                },
+                {
                     path: '/documentation',
                     name: 'documentation',
                     component: () => import('../views/pages/Documentation.vue')

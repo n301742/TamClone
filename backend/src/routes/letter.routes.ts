@@ -65,6 +65,23 @@ router.get('/:id/status', letterController.getLetterStatusHistory);
 router.post('/:id/send', letterController.sendLetter);
 
 /**
+ * @route POST /api/letters/:id/briefbutler
+ * @desc Send document to BriefButler with metadata
+ * @access Private
+ */
+router.post('/:id/briefbutler', (req, res, next) => {
+  // Add debug logging
+  console.log('==== BriefButler Request Received ====');
+  console.log('Route params:', req.params);
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('User:', req.user ? `ID: ${(req.user as any).id}, Name: ${(req.user as any).firstName} ${(req.user as any).lastName}` : 'Not authenticated');
+  console.log('======================================');
+  
+  // Continue to controller
+  letterController.sendToBriefButler(req, res);
+});
+
+/**
  * @route DELETE /api/letters/:id
  * @desc Delete a letter
  * @access Private

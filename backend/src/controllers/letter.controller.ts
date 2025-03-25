@@ -7,6 +7,8 @@ import path from 'path';
 import fs from 'fs';
 import FormData from 'form-data';
 import { pdfProcessingService, AddressFormType } from '../services/pdf-processing.service';
+import { BriefButlerService } from '../services/brief-butler.service';
+import { SpoolSubmissionData } from '../types/briefbutler.types';
 
 // BriefButler API configuration
 const BRIEFBUTLER_API_URL = process.env.BRIEFBUTLER_API_URL || 'https://api.briefbutler.com/v2.5';
@@ -823,4 +825,155 @@ function mapBriefButlerStatus(briefButlerStatus: string): LetterStatus {
   };
   
   return statusMap[briefButlerStatus.toLowerCase()] || LetterStatus.PROCESSING;
-} 
+}
+
+/**
+ * Send a document to BriefButler with metadata
+ * This allows direct integration with BriefButler from the frontend
+ */
+export const sendToBriefButler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const metadata = req.body;
+    
+    // Validate required metadata fields
+    const requiredFields = ['name', 'street', 'city', 'postalCode', 'country', 'formType'];
+    const missingFields = requiredFields.filter(field => !metadata[field]);
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+      });
+    }
+    
+    // Get the letter from the database
+    const letter = await prisma.letter.findUnique({
+      where: { id },
+    });
+    
+    if (!letter) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Letter not found',
+      });
+    }
+    
+    // Check if the letter already has a tracking ID
+    if (letter.trackingId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Letter has already been submitted to BriefButler',
+      });
+    }
+    
+    // Ensure PDF path exists
+    if (!letter.pdfPath) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Letter does not have a PDF file',
+      });
+    }
+    
+    // Create absolute path to PDF file
+    const absolutePdfPath = path.resolve(process.cwd(), letter.pdfPath);
+    
+    // Check if file exists
+    if (!fs.existsSync(absolutePdfPath)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Letter PDF file not found on server',
+      });
+    }
+    
+    // Prepare data for BriefButler submission
+    const submissionData: SpoolSubmissionData = {
+      pdfPath: absolutePdfPath,
+      recipientName: metadata.name,
+      recipientAddress: metadata.street,
+      recipientCity: metadata.city,
+      recipientZip: metadata.postalCode,
+      recipientCountry: metadata.country,
+      
+      // Include sender information from the authenticated user
+      senderName: `${(req.user as any)?.firstName || ''} ${(req.user as any)?.lastName || ''}`.trim() || 'Default Sender',
+      senderAddress: metadata.senderAddress || 'Default Address',
+      senderCity: metadata.senderCity || 'Default City',
+      senderZip: metadata.senderZip || '1000',
+      senderCountry: metadata.senderCountry || 'Austria',
+      
+      // Optional fields
+      deliveryProfile: 'briefbutler-standard',
+      isExpress: metadata.isExpress || false,
+      isRegistered: metadata.isRegistered || false,
+      isColorPrint: metadata.isColorPrint || false,
+      isDuplexPrint: metadata.isDuplexPrint !== undefined ? metadata.isDuplexPrint : true,
+      reference: metadata.reference || '',
+      recipientEmail: metadata.email || '',
+    };
+    
+    // Initialize BriefButler service
+    const briefButlerService = new BriefButlerService();
+    
+    // Submit to BriefButler spool service
+    const result = await briefButlerService.submitSpool(submissionData);
+    
+    if (!result.success) {
+      // Record the failure in status history
+      await prisma.statusHistory.create({
+        data: {
+          letterId: letter.id,
+          status: LetterStatus.FAILED,
+          message: result.message || 'Failed to submit letter to BriefButler',
+        },
+      });
+      
+      return res.status(400).json({
+        status: 'error',
+        message: result.message,
+        error: result.error,
+      });
+    }
+    
+    // Extract tracking ID from response
+    const deliveryId = result.data?.spool_id || result.data?.id || null;
+    const deliveryStatus = result.data?.status || LetterStatus.SENT;
+    
+    // Update letter with tracking ID and status
+    const updatedLetter = await prisma.letter.update({
+      where: { id },
+      data: {
+        deliveryId,
+        status: deliveryStatus,
+        sentAt: new Date(),
+      },
+    });
+    
+    // Add status history entry
+    await prisma.statusHistory.create({
+      data: {
+        letterId: letter.id,
+        status: LetterStatus.SENT,
+        message: 'Letter submitted to BriefButler spool service',
+      },
+    });
+    
+    return res.status(200).json({
+      status: 'success',
+      message: 'Letter submitted to BriefButler successfully',
+      data: {
+        letterId: letter.id,
+        briefButlerId: deliveryId,
+        briefButlerStatus: deliveryStatus,
+        briefButlerResponse: result.data,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error in sendToBriefButler controller:', error.message);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to submit letter to BriefButler',
+      error: error.message,
+    });
+  }
+}; 

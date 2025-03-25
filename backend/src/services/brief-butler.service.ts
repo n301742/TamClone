@@ -1,107 +1,86 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import { logger } from '../utils/logger';
 import dotenv from 'dotenv';
+import { BriefButlerApiResponse, LetterSubmissionData, SpoolSubmissionData } from '../types/briefbutler.types';
 
 // Load environment variables
 dotenv.config();
 
 /**
- * Interface for BriefButler API responses
+ * BriefButler service for interacting with the BriefButler API
+ * Provides methods for submitting documents to the BriefButler spool service
+ * and checking their status
  */
-interface BriefButlerApiResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
-  message?: string;
-}
-
-/**
- * Interface for letter submission data
- */
-interface LetterSubmissionData {
-  // Letter information
-  pdfPath: string;
-  recipientName: string;
-  recipientAddress: string;
-  recipientCity: string;
-  recipientZip: string;
-  recipientCountry: string;
-  recipientState?: string;
-  
-  // Sender information (from profile)
-  profileId: string;
-  
-  // Delivery options
-  isExpress: boolean;
-  isRegistered: boolean;
-  isColorPrint: boolean;
-  isDuplexPrint: boolean;
-}
-
-/**
- * Service for interacting with the BriefButler API
- * Handles sending documents, tracking status, and managing submissions
- */
-class BriefButlerService {
-  private readonly apiClient: AxiosInstance;
-  private readonly baseUrl: string;
-  private readonly certificatePath: string;
-  private readonly certificatePassword: string;
-  private inMockMode: boolean = false;
+export class BriefButlerService {
+  private apiClient: AxiosInstance;
+  private inMockMode: boolean;
 
   constructor() {
-    // Get configuration from environment variables
-    this.baseUrl = process.env.BRIEFBUTLER_API_URL || 'https://opsworkspace.int.hpcdual.at/api';
-    this.certificatePath = process.env.BRIEFBUTLER_CERTIFICATE_PATH || '';
-    this.certificatePassword = process.env.BRIEFBUTLER_CERTIFICATE_PASSWORD || '';
+    const apiUrl = process.env.BRIEFBUTLER_API_URL || 'https://demodelivery.briefbutler.com';
+    this.inMockMode = process.env.BRIEFBUTLER_TEST_MODE === 'true';
     
-    if (!this.certificatePath) {
-      logger.error('BriefButler certificate path not configured in environment variables');
+    logger.info('BriefButlerService: Initializing with certificate authentication');
+    
+    // Locate the converted certificate files
+    const certPath = process.env.BRIEFBUTLER_CERTIFICATE_PATH || 
+      path.resolve(process.cwd(), 'certificates/converted/cert.crt');
+    const keyPath = process.env.BRIEFBUTLER_KEY_PATH || 
+      path.resolve(process.cwd(), 'certificates/converted/key.key');
+    
+    logger.info(`BriefButlerService: Using certificate: ${certPath}`);
+    logger.info(`BriefButlerService: Using key: ${keyPath}`);
+    
+    let httpsAgent = undefined;
+    
+    if (!this.inMockMode) {
+      try {
+        // Check if cert and key exist
+        if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
+          throw new Error(`Certificate or key file not found at ${certPath} or ${keyPath}`);
+        }
+        
+        // Read the certificate and key files
+        const cert = fs.readFileSync(certPath);
+        const key = fs.readFileSync(keyPath);
+        
+        // Create HTTPS agent with certificate and key
+        httpsAgent = new https.Agent({
+          cert,
+          key,
+          rejectUnauthorized: false // Set to false for testing
+        });
+        
+        logger.info('BriefButlerService: Certificate and key loaded successfully');
+      } catch (error: any) {
+        logger.error(`BriefButlerService: Error loading certificate: ${error.message}`);
+        logger.warn('BriefButlerService: Initializing without certificate - API calls may fail');
+        
+        // Create a basic HTTPS agent without certificate
+        httpsAgent = new https.Agent({
+          rejectUnauthorized: false
+        });
+      }
     }
-    
-    // Create HTTPS agent with client certificate
-    const httpsAgent = new https.Agent({
-      pfx: fs.existsSync(this.certificatePath) ? fs.readFileSync(this.certificatePath) : undefined,
-      passphrase: this.certificatePassword,
-      rejectUnauthorized: process.env.NODE_ENV === 'production', // Only verify SSL in production
-    });
-    
-    // Create axios instance with default configuration
+
+    // Create axios instance with the HTTPS agent and any additional configuration
     this.apiClient = axios.create({
-      baseURL: this.baseUrl,
+      baseURL: apiUrl,
       httpsAgent,
+      timeout: 30000, // 30 seconds timeout
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
-    
-    // Add request logging
-    this.apiClient.interceptors.request.use(
-      (config) => {
-        logger.debug(`BriefButler API Request: ${config.method?.toUpperCase()} ${config.url}`);
-        return config;
-      },
-      (error) => {
-        logger.error('BriefButler API Request Error:', error);
-        return Promise.reject(error);
-      }
-    );
-    
-    // Add response logging
-    this.apiClient.interceptors.response.use(
-      (response) => {
-        logger.debug(`BriefButler API Response Status: ${response.status}`);
-        return response;
-      },
-      (error) => {
-        logger.error('BriefButler API Response Error:', error.response?.status, error.response?.data || error.message);
-        return Promise.reject(error);
-      }
-    );
+
+    if (this.inMockMode) {
+      logger.warn('BriefButlerService initialized in MOCK MODE. No real API calls will be made.');
+    } else {
+      logger.info(`BriefButlerService initialized with API URL: ${apiUrl}`);
+    }
   }
   
   /**
@@ -134,7 +113,7 @@ class BriefButlerService {
       return {
         success: true,
         data: {
-          trackingId: 'mock-tracking-123',
+          tracking_id: 'mock-tracking-123',
           status: 'processing',
           timestamp: new Date().toISOString(),
         },
@@ -144,7 +123,32 @@ class BriefButlerService {
     
     try {
       // Read the PDF file as a base64 string
+      const pdfPath = data.pdfPath;
+      logger.debug(`BriefButlerService: Reading PDF file from ${pdfPath}`);
+      
+      if (!fs.existsSync(pdfPath)) {
+        logger.error(`BriefButlerService: PDF file not found at ${pdfPath}`);
+        return {
+          success: false,
+          error: `PDF file not found at ${pdfPath}`,
+          message: 'Failed to submit letter to BriefButler',
+        };
+      }
+      
       const pdfContent = fs.readFileSync(data.pdfPath, { encoding: 'base64' });
+      const filename = path.basename(data.pdfPath);
+      
+      // Check if PDF content is valid
+      if (!pdfContent || pdfContent.length === 0) {
+        logger.error('BriefButlerService: PDF content is empty');
+        return {
+          success: false,
+          error: 'PDF content is empty',
+          message: 'Failed to submit letter to BriefButler',
+        };
+      }
+      
+      logger.debug(`BriefButlerService: PDF file read successfully. Content length: ${pdfContent.length} bytes`);
       
       // Prepare the request payload
       const payload = {
@@ -167,7 +171,7 @@ class BriefButlerService {
       };
       
       // Make the API request
-      const response = await this.apiClient.post('/spool/letter', payload);
+      const response = await this.apiClient.post('/letter', payload);
       
       return {
         success: true,
@@ -196,7 +200,7 @@ class BriefButlerService {
       return {
         success: true,
         data: {
-          trackingId,
+          tracking_id: trackingId,
           status: 'processing',
           timestamp: new Date().toISOString(),
         },
@@ -205,7 +209,7 @@ class BriefButlerService {
     }
     
     try {
-      const response = await this.apiClient.get(`/spool/status/${trackingId}`);
+      const response = await this.apiClient.get(`/status/${trackingId}`);
       
       return {
         success: true,
@@ -234,7 +238,7 @@ class BriefButlerService {
       return {
         success: true,
         data: {
-          trackingId,
+          tracking_id: trackingId,
           status: 'canceled',
           timestamp: new Date().toISOString(),
         },
@@ -243,7 +247,7 @@ class BriefButlerService {
     }
     
     try {
-      const response = await this.apiClient.post(`/spool/cancel/${trackingId}`);
+      const response = await this.apiClient.post(`/cancel/${trackingId}`);
       
       return {
         success: true,
@@ -256,6 +260,220 @@ class BriefButlerService {
         success: false,
         error: error.response?.data?.message || error.message,
         message: 'Failed to cancel letter in BriefButler',
+      };
+    }
+  }
+  
+  /**
+   * Submit a document to the BriefButler spool service
+   * @param data The data for the submission
+   * @returns Promise resolving to the API response
+   */
+  async submitSpool(data: SpoolSubmissionData): Promise<BriefButlerApiResponse> {
+    // Return mock response if in mock mode
+    if (this.inMockMode) {
+      logger.debug('BriefButlerService: Returning mock response for submitSpool');
+      return {
+        success: true,
+        data: {
+          spool_id: 'mock-spool-123',
+          status: 'processing',
+          timestamp: new Date().toISOString(),
+        },
+        message: 'Document submitted to spool successfully (MOCK)',
+      };
+    }
+    
+    try {
+      // Read the PDF file as a base64 string
+      const pdfPath = data.pdfPath;
+      logger.debug(`BriefButlerService: Reading PDF file from ${pdfPath}`);
+      
+      if (!fs.existsSync(pdfPath)) {
+        logger.error(`BriefButlerService: PDF file not found at ${pdfPath}`);
+        return {
+          success: false,
+          error: `PDF file not found at ${pdfPath}`,
+          message: 'Failed to submit document to BriefButler spool service',
+        };
+      }
+      
+      const pdfContent = fs.readFileSync(data.pdfPath, { encoding: 'base64' });
+      const filename = path.basename(data.pdfPath);
+      
+      // Try only the correct endpoint
+      const endpoint = '/endpoint-spool/dualDelivery';
+      
+      // Allow for a configurable deliveryProfile (default to "briefbutler-test" for now)
+      const deliveryProfile = data.deliveryProfile || "briefbutler-test";
+      
+      // Simple payload structure following API documentation
+      const payload = {
+        metadata: {
+          deliveryId: `Delivery_${Date.now()}`,
+          caseId: `Case_${Date.now()}`
+        },
+        configuration: {
+          deliveryProfile,
+          allowEmail: true,
+          costcenter: data.reference || "default-costcenter" 
+        },
+        receiver: {
+          email: data.recipientEmail || "",
+          recipient: {
+            physicalPerson: {
+              familyName: data.recipientName.split(' ').pop() || data.recipientName,
+              givenName: data.recipientName.split(' ').shift() || ""
+            }
+          },
+          postalAddress: {
+            street: data.recipientAddress,
+            postalCode: data.recipientZip,
+            city: data.recipientCity,
+            countryCode: "AT" // Default to Austria
+          }
+        },
+        sender: {
+          person: {
+            physicalPerson: {
+              familyName: data.senderName.split(' ').pop() || data.senderName,
+              givenName: data.senderName.split(' ').shift() || ""
+            }
+          },
+          postalAddress: {
+            street: data.senderAddress,
+            postalCode: data.senderZip,
+            city: data.senderCity,
+            countryCode: "AT" // Default to Austria
+          }
+        },
+        subject: data.reference || "Document Delivery",
+        documents: [
+          {
+            content: pdfContent,
+            mimeType: "application/pdf",
+            name: filename,
+            documentId: `doc_${Date.now()}`,
+            type: "Standard"
+          }
+        ]
+      };
+      
+      logger.debug(`BriefButlerService: Making request to endpoint: ${endpoint}`);
+      
+      try {
+        const response = await this.apiClient.post(endpoint, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
+        
+        logger.debug('BriefButlerService: Response successfully received');
+        
+        return {
+          success: true,
+          data: response.data,
+          message: 'Document submitted to spool service successfully',
+        };
+      } catch (error: any) {
+        logger.error(`BriefButlerService: Error with endpoint ${endpoint}: ${error.message}`);
+        
+        if (error.response) {
+          logger.error(`Response status: ${error.response.status}`);
+          logger.error(`Response data:`, JSON.stringify(error.response.data, null, 2));
+        }
+        
+        return {
+          success: false,
+          error: error.response?.data?.message || error.message,
+          message: 'Failed to submit document to BriefButler spool service',
+        };
+      }
+    } catch (error: any) {
+      logger.error('BriefButlerService: Error submitting document:', error.message);
+      
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+        logger.error(`Response data:`, JSON.stringify(error.response.data, null, 2));
+      }
+      
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message,
+        message: 'Failed to submit document to BriefButler spool service',
+      };
+    }
+  }
+  
+  /**
+   * Get the status of a spool submission
+   * @param spoolId The ID of the spool submission
+   * @returns Promise resolving to the API response
+   */
+  async getSpoolStatus(spoolId: string): Promise<BriefButlerApiResponse> {
+    // Return mock response if in mock mode
+    if (this.inMockMode) {
+      logger.debug('BriefButlerService: Returning mock response for getSpoolStatus');
+      return {
+        success: true,
+        data: {
+          spool_id: spoolId,
+          status: 'processing',
+          timestamp: new Date().toISOString(),
+        },
+        message: 'Spool status retrieved successfully (MOCK)',
+      };
+    }
+    
+    try {
+      logger.debug(`BriefButlerService: Getting status for spool ID: ${spoolId}`);
+      
+      // Use the correct endpoint for status retrieval
+      const endpoint = `/endpoint-spool/status/${spoolId}`;
+      
+      logger.debug(`BriefButlerService: Making request to endpoint: ${endpoint}`);
+      
+      try {
+        const response = await this.apiClient.get(endpoint, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        logger.debug('BriefButlerService: Response successfully received');
+        
+        return {
+          success: true,
+          data: response.data,
+          message: 'Spool status retrieved successfully',
+        };
+      } catch (error: any) {
+        logger.error(`BriefButlerService: Error with endpoint ${endpoint}: ${error.message}`);
+        
+        if (error.response) {
+          logger.error(`Response status: ${error.response.status}`);
+          logger.error(`Response data:`, JSON.stringify(error.response.data, null, 2));
+        }
+        
+        return {
+          success: false,
+          error: error.response?.data?.message || error.message,
+          message: 'Failed to get spool status from BriefButler',
+        };
+      }
+    } catch (error: any) {
+      logger.error('BriefButlerService: Error getting spool status:', error.message);
+      
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+        logger.error(`Response data:`, JSON.stringify(error.response.data, null, 2));
+      }
+      
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message,
+        message: 'Failed to get spool status from BriefButler',
       };
     }
   }
@@ -288,7 +506,7 @@ class BriefButlerService {
     }
     
     try {
-      const response = await this.apiClient.get(`/spool/profiles/${userId}`);
+      const response = await this.apiClient.get(`/profiles/${userId}`);
       
       return {
         success: true,

@@ -223,6 +223,89 @@ class PdfService {
       }
     };
   }
+
+  /**
+   * Send a document to BriefButler service with metadata
+   * 
+   * @param documentId - The ID of the document to send
+   * @param metadata - The metadata to send with the document
+   * @returns Promise with the BriefButler response
+   */
+  public async sendToBriefButler(
+    documentId: string,
+    metadata: {
+      name: string;
+      street: string;
+      city: string;
+      postalCode: string;
+      country: string;
+      formType: 'formA' | 'formB' | 'din676';
+      isDuplexPrint: boolean;
+      isColorPrint: boolean;
+      email?: string;         // Optional recipient email
+      isExpress?: boolean;    // Optional express delivery
+      isRegistered?: boolean; // Optional registered mail
+      reference?: string;     // Optional reference number
+      senderAddress?: string; // Sender address for backend validation
+      senderCity?: string;    // Sender city for backend validation
+      senderZip?: string;     // Sender ZIP code for backend validation
+      senderCountry?: string; // Sender country for backend validation
+    }
+  ): Promise<any> {
+    // Check if we should use mock data
+    if (this.isDevelopment && this.useMockApi) {
+      console.log('📝 PdfService: Using mock data for BriefButler API');
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
+      
+      return {
+        success: true,
+        briefButlerId: `bb-${Math.random().toString(36).substring(2, 10)}`,
+        status: 'SUBMITTED',
+        message: 'Document successfully sent to BriefButler service'
+      };
+    }
+    
+    console.log(`📤 PdfService: Sending document ${documentId} to BriefButler with metadata:`, metadata);
+    console.log(`📤 PdfService: Using endpoint: ${this.endpoint}/${documentId}/briefbutler`);
+    
+    try {
+      // Call the BriefButler API endpoint
+      const response = await apiClient.post<any>(
+        `${this.endpoint}/${documentId}/briefbutler`,
+        metadata
+      );
+      
+      console.log('📥 PdfService: BriefButler response:', response);
+      
+      return response;
+    } catch (error: any) {
+      console.error('❌ PdfService: BriefButler request failed:', error);
+      
+      // Log more details about the error for debugging
+      if (error.response) {
+        console.error('❌ Response status:', error.response.status);
+        console.error('❌ Response data:', error.response.data);
+        console.error('❌ Response headers:', error.response.headers);
+      } else if (error.request) {
+        console.error('❌ No response received, request details:', error.request);
+      } else {
+        console.error('❌ Error details:', error.message);
+      }
+      
+      // If we're in development mode with mock API enabled, return mock data on failure
+      if (this.isDevelopment && this.useMockApi) {
+        console.log('📝 PdfService: BriefButler API request failed, using mock data instead');
+        return {
+          success: true,
+          briefButlerId: `bb-mock-${Math.random().toString(36).substring(2, 10)}`,
+          status: 'SUBMITTED',
+          message: 'Document successfully sent to BriefButler service (mock)'
+        };
+      }
+      
+      throw error;
+    }
+  }
 }
 
 /**

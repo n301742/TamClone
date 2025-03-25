@@ -4,6 +4,14 @@ import { useToast } from 'primevue/usetoast';
 import { pdfService, type AddressExtraction } from '../services/api';
 import { useAuthStore } from '../stores/auth';
 import PdfEmbed from 'vue-pdf-embed';
+import MetadataEditor from './MetadataEditor.vue';
+import Button from 'primevue/button';
+import FileUpload from 'primevue/fileupload';
+import ProgressBar from 'primevue/progressbar';
+import ProgressSpinner from 'primevue/progressspinner';
+import InputText from 'primevue/inputtext';
+import Checkbox from 'primevue/checkbox';
+import Select from 'primevue/select';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -31,6 +39,7 @@ const emit = defineEmits<{
   (e: 'upload-error', error: any): void;
   (e: 'address-extracted', addressData: AddressExtraction): void;
   (e: 'file-selected', event: { files: File[] }): void;
+  (e: 'workflow-complete', result: any): void;
 }>();
 
 // State
@@ -46,11 +55,39 @@ const pdfSource = ref<string | null>(null);
 const pdfBlob = ref<Blob | null>(null);
 const showPdfViewer = ref<boolean>(false);
 const formTypeInternal = ref(props.formType);
+const isDuplexPrintInternal = ref(props.isDuplexPrint);
+const isColorPrintInternal = ref(props.isColorPrint);
+const documentId = ref<string | null>(null);
+const showMetadataEditor = ref<boolean>(false);
+const metadataSubmitting = ref<boolean>(false);
+
+// Form types for dropdown
+const formTypes = [
+  { label: 'Form A', value: 'formA' },
+  { label: 'Form B', value: 'formB' },
+  { label: 'DIN 676', value: 'din676' }
+];
+
+// Workflow states
+type WorkflowState = 'upload' | 'processing' | 'metadata' | 'complete';
+const currentState = ref<WorkflowState>('upload');
 
 // Watch for formType changes from the parent
 watch(() => props.formType, (newFormType) => {
   formTypeInternal.value = newFormType;
   console.log(`📝 Form type updated to: ${newFormType}`);
+});
+
+// Watch for isDuplexPrint changes from the parent
+watch(() => props.isDuplexPrint, (newValue) => {
+  isDuplexPrintInternal.value = newValue;
+  console.log(`📝 Duplex print updated to: ${newValue}`);
+});
+
+// Watch for isColorPrint changes from the parent
+watch(() => props.isColorPrint, (newValue) => {
+  isColorPrintInternal.value = newValue;
+  console.log(`📝 Color print updated to: ${newValue}`);
 });
 
 // Computed
@@ -116,6 +153,11 @@ const onSelectedFiles = (event: any) => {
   
   // Emit file-selected event to notify parent components
   emit('file-selected', { files: selectedFiles.value });
+  
+  // Reset workflow state
+  currentState.value = 'upload';
+  documentId.value = null;
+  showMetadataEditor.value = false;
 };
 
 const onClear = () => {
@@ -131,6 +173,11 @@ const onClear = () => {
   pdfSource.value = null;
   pdfBlob.value = null;
   showPdfViewer.value = false;
+  
+  // Reset workflow state
+  currentState.value = 'upload';
+  documentId.value = null;
+  showMetadataEditor.value = false;
 };
 
 const onRemoveFile = (file: File, removeCallback: Function, index: number) => {
@@ -185,17 +232,24 @@ const uploadEvent = async (uploadCallback: Function) => {
   
   try {
     console.log('⬆️ Starting file upload...');
+    currentState.value = 'processing';
+    
     const result = await pdfService.uploadPdfWithAddressExtraction(
       fileToUpload,
       {
         description: description.value,
         formType: formTypeInternal.value,
-        isDuplexPrint: props.isDuplexPrint,
-        isColorPrint: props.isColorPrint
+        isDuplexPrint: isDuplexPrintInternal.value,
+        isColorPrint: isColorPrintInternal.value
       }
     );
 
     console.log('✅ Upload response received:', result);
+    
+    // Store document ID for later use with BriefButler
+    if (result.id) {
+      documentId.value = result.id;
+    }
 
     toast.add({
       severity: 'success',
@@ -209,8 +263,15 @@ const uploadEvent = async (uploadCallback: Function) => {
       console.log('📋 Address extraction data:', result.addressExtraction);
       addressExtraction.value = result.addressExtraction;
       emit('address-extracted', result.addressExtraction);
+      
+      // Move to metadata editing step
+      currentState.value = 'metadata';
+      showMetadataEditor.value = true;
     } else {
       console.warn('⚠️ No address extraction data in response');
+      // Still move to metadata step but without pre-filled data
+      currentState.value = 'metadata';
+      showMetadataEditor.value = true;
     }
 
     // Emit the upload success event
@@ -219,9 +280,9 @@ const uploadEvent = async (uploadCallback: Function) => {
       addressExtraction: result.addressExtraction
     });
 
-    // Clear selected files
-    selectedFiles.value = [];
-    totalSize.value = 0;
+    // Don't clear selected files yet, as we need to keep the preview during metadata editing
+    // selectedFiles.value = [];
+    // totalSize.value = 0;
 
   } catch (error: any) {
     console.error('❌ Upload error:', error);
@@ -254,6 +315,9 @@ const uploadEvent = async (uploadCallback: Function) => {
       });
       emit('upload-error', error);
     }
+    
+    // Reset to upload state on error
+    currentState.value = 'upload';
   } finally {
     isUploading.value = false;
     uploadProgress.value = 0;
@@ -271,113 +335,321 @@ const onTemplatedUpload = (event: any) => {
   // Update uploaded files
   uploadedFiles.value = event.files;
 };
+
+// Handle metadata submission
+const onMetadataSubmit = async (result: { metadata: any, documentId: string, response: any }) => {
+  console.log('📋 Metadata submitted:', result);
+  console.log('📋 Document ID used:', result.documentId);
+  
+  // Show success message
+  toast.add({
+    severity: 'success',
+    summary: 'Document Processed',
+    detail: 'Document successfully sent to BriefButler service.',
+    life: 3000
+  });
+  
+  // Update workflow state
+  currentState.value = 'complete';
+  showMetadataEditor.value = false;
+  
+  // Emit the workflow-complete event
+  emit('workflow-complete', result);
+  
+  // Reset for next upload
+  setTimeout(() => {
+    // Clear the file selection after a short delay to show the success state
+    selectedFiles.value = [];
+    totalSize.value = 0;
+    addressExtraction.value = null;
+    documentId.value = null;
+    
+    // Clear PDF preview
+    if (pdfSource.value) {
+      URL.revokeObjectURL(pdfSource.value);
+    }
+    pdfSource.value = null;
+    pdfBlob.value = null;
+    showPdfViewer.value = false;
+    
+    // Reset to upload state for next document
+    currentState.value = 'upload';
+  }, 3000);
+};
+
+// Handle metadata editing error
+const onMetadataError = (error: any) => {
+  console.error('❌ Metadata submission error:', error);
+  
+  // Stay in metadata editing state to allow corrections
+  currentState.value = 'metadata';
+};
+
+// Go back from metadata editor to upload state
+const onMetadataBack = () => {
+  showMetadataEditor.value = false;
+  currentState.value = 'upload';
+};
+
+// Updated event handlers for FileUpload
+const onSelectedRemoveFile = (event: any) => {
+  // Get the file from the event
+  const file = event.file;
+  // Call our existing handler (without the callback and index that may not be available)
+  onRemoveFile(file, () => {}, 0);
+};
+
+const onUploader = (event: any) => {
+  // Extract the upload callback function from the event
+  const uploadCallback = event && typeof event === 'object' ? event.uploader || (() => {}) : () => {};
+  
+  // Call our existing upload handler with the callback
+  uploadEvent(uploadCallback);
+};
 </script>
 
 <template>
   <div class="pdf-uploader">
-    <div class="flex flex-col gap-2 mb-3">
-      <label for="description" class="font-medium">Description (Optional)</label>
-      <InputText 
-        id="description" 
-        v-model="description" 
-        placeholder="Enter a description for this document"
-      />
+    <!-- File Upload UI - shown in upload state -->
+    <div v-if="currentState === 'upload'" class="upload-section">
+      <div v-if="!error" class="mb-5">
+        <div class="text-center my-3">
+          <h3 class="text-lg font-semibold">Upload your PDF file</h3>
+          <p class="text-sm text-gray-500">Drag and drop or click to select</p>
+        </div>
+        
+        <div>
+          <span class="p-float-label">
+            <Select 
+              id="formType" 
+              v-model="formTypeInternal" 
+              :options="formTypes" 
+              optionLabel="label" 
+              optionValue="value" 
+              class="w-full md:w-56"
+            />
+            <label for="formType">Form Type</label>
+          </span>
+        </div>
+      </div>
+      
+      <FileUpload
+        ref="fileUploadRef"
+        mode="advanced"
+        :multiple="false"
+        accept="application/pdf"
+        :maxFileSize="maxFileSizeBytes"
+        :auto="false"
+        :customUpload="true"
+        @select="onSelectedFiles"
+        @clear="onClear"
+        @remove="onSelectedRemoveFile"
+        @uploader="onUploader"
+        :class="{ 'p-invalid': !isValidFile && fileSelected }"
+      >
+        <template #header="{ chooseCallback, uploadCallback, clearCallback }">
+          <div class="flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+              <span class="font-bold mr-2">PDF Upload</span>
+              <span class="text-sm">Max size: {{ props.maxFileSize }}MB</span>
+            </div>
+            <div class="flex gap-2">
+              <!-- Clear button -->
+              <Button
+                v-if="fileSelected"
+                type="button"
+                icon="pi pi-times"
+                label="Clear"
+                class="p-button-outlined p-button-danger p-button-sm"
+                @click="clearCallback"
+              />
+              <!-- Upload button - prominently displayed when a file is selected -->
+              <Button
+                v-if="fileSelected && isValidFile"
+                type="button"
+                icon="pi pi-cloud-upload"
+                label="Upload Document"
+                class="p-button-success p-button-sm"
+                @click="() => uploadEvent(uploadCallback)"
+              />
+            </div>
+          </div>
+        </template>
+        
+        <template #empty>
+          <div class="flex flex-column align-items-center p-5">
+            <i class="pi pi-file-pdf text-5xl mb-3" style="color: var(--primary-color)"></i>
+            <span class="font-semibold mb-2">Drag and drop a PDF here</span>
+            <span class="text-sm mb-5">or click to browse</span>
+          </div>
+        </template>
+      </FileUpload>
+      
+      <!-- Size indicator -->
+      <div v-if="fileSelected" class="mt-2">
+        <div class="flex justify-content-between text-sm mb-1">
+          <span>Total Size: {{ formattedTotalSize }}</span>
+          <span>{{ Math.round(totalSizePercent) }}% of max</span>
+        </div>
+        <ProgressBar :value="totalSizePercent" :class="{'danger-progress': totalSizePercent > 90}" />
+      </div>
+      
+      <!-- File type validation error -->
+      <small v-if="!isValidFile && fileSelected" class="p-error block mt-2">
+        Please select a valid PDF file under {{ props.maxFileSize }}MB
+      </small>
+      
+      <!-- Optional description field -->
+      <div class="mt-3">
+        <span class="p-float-label">
+          <InputText id="description" v-model="description" class="w-full" />
+          <label for="description">Description (optional)</label>
+        </span>
+      </div>
+      
+      <!-- Form Type Selection -->
+      <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <span class="p-float-label">
+            <Select 
+              id="formType" 
+              v-model="formTypeInternal" 
+              :options="formTypes" 
+              optionLabel="label" 
+              optionValue="value" 
+              class="w-full"
+            />
+            <label for="formType">Form Type</label>
+          </span>
+        </div>
+        
+        <div class="flex flex-column gap-2 justify-content-center">
+          <div class="field-checkbox flex align-items-center">
+            <Checkbox id="isDuplexPrint" v-model="isDuplexPrintInternal" :binary="true" />
+            <label for="isDuplexPrint" class="ml-2">Duplex Print</label>
+          </div>
+          
+          <div class="field-checkbox flex align-items-center">
+            <Checkbox id="isColorPrint" v-model="isColorPrintInternal" :binary="true" />
+            <label for="isColorPrint" class="ml-2">Color Print</label>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Upload button outside FileUpload component for better visibility -->
+      <div v-if="fileSelected && isValidFile" class="mt-4 text-center">
+        <Button 
+          type="button" 
+          icon="pi pi-cloud-upload" 
+          label="Start Upload" 
+          class="p-button-success"
+          @click="() => uploadEvent(() => {})"
+        />
+        <div class="text-sm text-gray-500 mt-2">
+          Click the button above to start processing the document
+        </div>
+      </div>
     </div>
     
-    <FileUpload 
-      ref="fileUploadRef"
-      name="pdfFile" 
-      url="/api/upload" 
-      @upload="onTemplatedUpload($event)" 
-      :multiple="false"
-      accept="application/pdf" 
-      :maxFileSize="maxFileSizeBytes" 
-      @select="onSelectedFiles"
-      :customUpload="true"
-    >
-      <template #header="{ chooseCallback, uploadCallback, clearCallback, files }">
-        <div class="flex flex-wrap justify-between items-center flex-1 gap-4">
-          <div class="flex gap-2">
-            <Button @click="chooseCallback()" icon="pi pi-file-pdf" rounded outlined severity="secondary" 
-              aria-label="Choose File"></Button>
-            <Button @click="uploadEvent(uploadCallback)" icon="pi pi-cloud-upload" rounded outlined severity="success" 
-              :disabled="!files || files.length === 0" aria-label="Upload File"></Button>
-            <Button @click="clearCallback()" icon="pi pi-times" rounded outlined severity="danger" 
-              :disabled="!files || files.length === 0" aria-label="Clear Files"></Button>
+    <!-- Loading state -->
+    <div v-if="currentState === 'processing'" class="processing-section p-4 flex flex-column align-items-center">
+      <ProgressSpinner style="width: 50px; height: 50px;" />
+      <div class="text-center mt-3">
+        <h3 class="m-0 mb-2">Processing Document</h3>
+        <p class="text-sm text-500 m-0">Uploading and extracting metadata...</p>
+      </div>
+    </div>
+    
+    <!-- Metadata Editor - shown in metadata state -->
+    <MetadataEditor
+      v-if="currentState === 'metadata' && showMetadataEditor"
+      :initialMetadata="addressExtraction ? {
+        name: addressExtraction.name || '',
+        street: addressExtraction.street || '',
+        city: addressExtraction.city || '',
+        postalCode: addressExtraction.postalCode || '',
+        country: addressExtraction.country || '',
+        formType: formTypeInternal,
+        isDuplexPrint: isDuplexPrintInternal,
+        isColorPrint: isColorPrintInternal
+      } : undefined"
+      :documentId="documentId || undefined"
+      @submit="onMetadataSubmit"
+      @error="onMetadataError"
+      @back="onMetadataBack"
+    />
+    
+    <!-- PDF Overlay showing extraction areas - shown during metadata editing -->
+    <div v-if="currentState === 'metadata' && pdfSource && addressExtraction" class="pdf-extraction-overlay mt-4">
+      <h3 class="text-xl font-bold mb-2">Extracted Data Visualization</h3>
+      <p class="text-sm text-gray-600 mb-3">The highlighted areas show where data was extracted from your document.</p>
+      
+      <div class="relative border-1 border-round overflow-hidden">
+        <div class="pdf-container">
+          <PdfEmbed :source="pdfSource" class="w-full" style="height: 500px;" />
+          
+          <!-- Overlay highlights -->
+          <div v-if="addressExtraction" class="extraction-highlights">
+            <!-- Name highlight -->
+            <div v-if="addressExtraction.name" class="highlight name-highlight">
+              <span class="highlight-label">Name: {{ addressExtraction.name }}</span>
+            </div>
             
-            <!-- Toggle PDF Viewer button (shows only when a PDF is selected) -->
-            <Button v-if="pdfSource && props.showPdfPreview" @click="togglePdfViewer()" 
-              :icon="showPdfViewer ? 'pi pi-list' : 'pi pi-file'" 
-              rounded outlined severity="info"
-              :aria-label="showPdfViewer ? 'Show File List' : 'Show PDF Preview'"></Button>
-          </div>
-          <ProgressBar :value="totalSizePercent" :showValue="false" class="md:w-20rem h-1 w-full md:ml-auto">
-            <span class="whitespace-nowrap">{{ formattedTotalSize }} / {{ props.maxFileSize }}MB</span>
-          </ProgressBar>
-        </div>
-      </template>
-      
-      <template #content="{ files, uploadedFiles, removeUploadedFileCallback, removeFileCallback, messages }">
-        <div class="flex flex-col gap-4 pt-4">
-          <Message v-for="message of messages" :key="message" :class="{ 'mb-4': !files.length && !uploadedFiles.length}" severity="error">
-            {{ message }}
-          </Message>
-
-          <!-- PDF Viewer -->
-          <div v-if="pdfSource && showPdfViewer && props.showPdfPreview" class="pdf-viewer-container">
-            <h5>PDF Preview</h5>
-            <div class="pdf-viewer">
-              <PdfEmbed :source="pdfSource" :page="1" />
+            <!-- Address highlight -->
+            <div v-if="addressExtraction.street" class="highlight address-highlight">
+              <span class="highlight-label">Address: {{ addressExtraction.street }}</span>
+            </div>
+            
+            <!-- City/Postal highlight -->
+            <div v-if="addressExtraction.city && addressExtraction.postalCode" class="highlight city-highlight">
+              <span class="highlight-label">City/Postal: {{ addressExtraction.postalCode }} {{ addressExtraction.city }}</span>
             </div>
           </div>
-
-          <!-- File Cards - show if no PDF preview or if toggle is set to list view -->
-          <template v-if="!showPdfViewer || !pdfSource || !props.showPdfPreview">
-            <div v-if="files.length > 0">
-              <h5>Pending</h5>
-              <div class="flex flex-wrap gap-4">
-                <div v-for="(file, index) of files" :key="file.name + file.type + file.size" 
-                  class="p-4 rounded-border flex flex-col border border-surface items-center gap-4">
-                  <div>
-                    <i class="pi pi-file-pdf text-4xl text-primary"></i>
-                  </div>
-                  <span class="font-semibold text-ellipsis max-w-60 whitespace-nowrap overflow-hidden">{{ file.name }}</span>
-                  <div>{{ formatSize(file.size) }}</div>
-                  <Badge value="Pending" severity="warn" />
-                  <Button icon="pi pi-times" @click="onRemoveFile(file, removeFileCallback, index)" 
-                    outlined rounded severity="danger" aria-label="Remove File" />
-                </div>
-              </div>
-            </div>
-
-            <div v-if="uploadedFiles.length > 0">
-              <h5>Completed</h5>
-              <div class="flex flex-wrap gap-4">
-                <div v-for="(file, index) of uploadedFiles" :key="file.name + file.type + file.size" 
-                  class="p-4 rounded-border flex flex-col border border-surface items-center gap-4">
-                  <div>
-                    <i class="pi pi-file-pdf text-4xl text-primary"></i>
-                  </div>
-                  <span class="font-semibold text-ellipsis max-w-60 whitespace-nowrap overflow-hidden">{{ file.name }}</span>
-                  <div>{{ formatSize(file.size) }}</div>
-                  <Badge value="Completed" class="mt-2" severity="success" />
-                  <Button icon="pi pi-times" @click="removeUploadedFileCallback(index)" 
-                    outlined rounded severity="danger" aria-label="Remove File" />
-                </div>
-              </div>
-            </div>
-          </template>
+          
+          <!-- Confidence indicator -->
+          <div class="confidence-indicator">
+            <span class="font-semibold">Extraction Confidence:</span>
+            <ProgressBar 
+              :value="addressExtraction ? addressExtraction.confidence * 100 : 0" 
+              :class="{ 
+                'green-progress': addressExtraction && addressExtraction.confidence > 0.8,
+                'yellow-progress': addressExtraction && addressExtraction.confidence > 0.5 && addressExtraction.confidence <= 0.8,
+                'red-progress': addressExtraction && addressExtraction.confidence <= 0.5
+              }"
+              class="mt-1"
+            />
+            <span class="text-sm">{{ confidencePercentage }}</span>
+          </div>
         </div>
-      </template>
+      </div>
+    </div>
+    
+    <!-- Complete state -->
+    <div v-if="currentState === 'complete'" class="complete-section p-4 flex flex-column align-items-center">
+      <i class="pi pi-check-circle text-5xl text-green-500 mb-3"></i>
+      <div class="text-center">
+        <h3 class="m-0 mb-2">Document Sent Successfully</h3>
+        <p class="text-sm text-500 m-0">Your document has been sent to BriefButler.</p>
+      </div>
+    </div>
+    
+    <!-- PDF Preview - shown in all states if available -->
+    <div v-if="pdfSource && props.showPdfPreview" class="pdf-preview-section mt-4">
+      <div class="flex justify-content-between align-items-center mb-2">
+        <h3 class="m-0 text-lg">Document Preview</h3>
+        <Button 
+          type="button" 
+          :icon="showPdfViewer ? 'pi pi-eye-slash' : 'pi pi-eye'" 
+          :label="showPdfViewer ? 'Hide Preview' : 'Show Preview'"
+          class="p-button-sm"
+          @click="togglePdfViewer"
+        />
+      </div>
       
-      <template #empty>
-        <div class="flex items-center justify-center flex-col p-6">
-          <i class="pi pi-file-pdf !border-2 !rounded-full !p-8 !text-4xl !text-primary" />
-          <p class="mt-4 mb-0">Drag and drop PDF files here to upload.</p>
-          <p class="text-sm text-color-secondary">Only PDF documents are accepted.</p>
-        </div>
-      </template>
-    </FileUpload>
+      <div v-if="showPdfViewer" class="pdf-viewer border-1 border-round">
+        <PdfEmbed :source="pdfSource" class="w-full" style="height: 500px;" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -425,9 +697,92 @@ const onTemplatedUpload = (event: any) => {
   margin: 0 auto;
 }
 
-/* Override some PrimeVue styles for better UX */
-:deep(.p-badge) {
-  min-width: 1.5rem;
+/* Extraction overlay styles */
+.pdf-extraction-overlay {
+  width: 100%;
+}
+
+.pdf-container {
+  position: relative;
+}
+
+.extraction-highlights {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.highlight {
+  position: absolute;
+  background-color: rgba(255, 221, 0, 0.2);
+  border: 2px solid rgba(255, 165, 0, 0.5);
+  border-radius: 4px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.name-highlight {
+  top: 20%;
+  left: 15%;
+  width: 40%;
+  height: 30px;
+}
+
+.address-highlight {
+  top: 25%;
+  left: 15%;
+  width: 50%;
+  height: 30px;
+}
+
+.city-highlight {
+  top: 30%;
+  left: 15%;
+  width: 45%;
+  height: 30px;
+}
+
+.highlight-label {
+  background-color: #ffffff;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.8rem;
+  color: #333;
+  border: 1px solid #ddd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.confidence-indicator {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 250px;
+  z-index: 6;
+}
+
+.green-progress :deep(.p-progressbar-value) {
+  background-color: #22c55e !important;
+}
+
+.yellow-progress :deep(.p-progressbar-value) {
+  background-color: #eab308 !important;
+}
+
+.red-progress :deep(.p-progressbar-value) {
+  background-color: #ef4444 !important;
 }
 
 /* Fix text overflow in file cards */

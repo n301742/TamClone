@@ -41,7 +41,8 @@ const model = ref<MenuGroup[]>([
         items: [
             { label: 'My Letters', icon: 'pi pi-fw pi-envelope', to: '/letters' },
             { label: 'Address Book', icon: 'pi pi-fw pi-map-marker', to: '/address-book' },
-            { label: 'PDF Processing', icon: 'pi pi-fw pi-file-pdf', to: '/pdf-processing' }
+            { label: 'PDF Processing', icon: 'pi pi-fw pi-file-pdf', to: '/pdf-processing' },
+            { label: 'Document Upload', icon: 'pi pi-fw pi-upload', to: '/document-upload' }
         ]
     },
     {
