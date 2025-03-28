@@ -1,0 +1,162 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Remaining Form Component Examples
+
+## CascadeSelect
+```vue
+<template>
+  <div class="card">
+    <label for="cascadeselect">Select Location</label>
+    <CascadeSelect v-model="selectedCity" :options="countries" optionLabel="cname" optionGroupLabel="name"
+                   optionGroupChildren="states" style="min-width: 14rem" placeholder="Select a City" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const selectedCity = ref(null)
+const countries = [
+  {
+    name: 'Austria',
+    states: [
+      { cname: 'Vienna' },
+      { cname: 'Salzburg' }
+    ]
+  },
+  {
+    name: 'Germany',
+    states: [
+      { cname: 'Berlin' },
+      { cname: 'Munich' }
+    ]
+  }
+]
+</script>
+```
+
+## Textarea
+```vue
+<template>
+  <div class="card">
+    <label for="bio">Biography</label>
+    <Textarea id="bio" v-model="bio" rows="5" cols="30" placeholder="Tell us about yourself..." />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const bio = ref('')
+</script>
+```
+
+## MultiSelect
+```vue
+<template>
+  <div class="card">
+    <label for="ms">Select Cities</label>
+    <MultiSelect v-model="selectedCities" :options="cities" optionLabel="name" display="chip" placeholder="Select" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const selectedCities = ref([])
+const cities = [
+  { name: 'Vienna' },
+  { name: 'Berlin' },
+  { name: 'Paris' }
+]
+</script>
+```
+
+## ToggleSwitch
+```vue
+<template>
+  <div class="card flex gap-2 align-items-center">
+    <label for="switch">Enable Feature</label>
+    <ToggleSwitch v-model="enabled" inputId="switch" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const enabled = ref(true)
+</script>
+```
+
+## RadioButton
+```vue
+<template>
+  <div class="card flex flex-column gap-2">
+    <div class="flex align-items-center" v-for="option in options" :key="option">
+      <RadioButton v-model="selected" :inputId="option" :value="option" />
+      <label :for="option" class="ml-2">{{ option }}</label>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const selected = ref('')
+const options = ['Option A', 'Option B', 'Option C']
+</script>
+```
+
+## Rating
+```vue
+<template>
+  <div class="card">
+    <label for="rating">Rate this product:</label>
+    <Rating v-model="rating" :cancel="false" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const rating = ref(null)
+</script>
+```
+
+## Select
+```vue
+<template>
+  <div class="card">
+    <label for="dropdown">Select Country</label>
+    <Select id="dropdown" v-model="selectedCountry" :options="countries" optionLabel="name" placeholder="Choose" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const selectedCountry = ref(null)
+const countries = [
+  { name: 'Austria' },
+  { name: 'Germany' },
+  { name: 'France' }
+]
+</script>
+```
+
+## Knob
+```vue
+<template>
+  <div class="card flex flex-column align-items-center gap-2">
+    <Knob v-model="value" />
+    <div>Value: {{ value }}</div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const value = ref(50)
+</script>
+```
+

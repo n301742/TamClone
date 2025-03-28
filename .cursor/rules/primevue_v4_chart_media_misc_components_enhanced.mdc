@@ -1,0 +1,124 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Enhanced Chart, Media & Misc Component Examples
+
+## Chart.js
+```vue
+<template>
+  <div class="card">
+    <Chart type="bar" :data="chartData" :options="chartOptions" />
+  </div>
+</template>
+
+<script setup>
+const chartData = {
+  labels: ['January', 'February', 'March', 'April'],
+  datasets: [
+    {
+      label: 'Sales',
+      backgroundColor: '#42A5F5',
+      data: [65, 59, 80, 81]
+    }
+  ]
+}
+
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false
+}
+</script>
+```
+
+## Carousel
+```vue
+<template>
+  <div class="card">
+    <Carousel :value="products" :numVisible="3" :numScroll="1">
+      <template #item="slotProps">
+        <div class="product-item">
+          <div class="product-detail">
+            <h5>{{ slotProps.data.name }}</h5>
+            <p>\${{ slotProps.data.price }}</p>
+          </div>
+        </div>
+      </template>
+    </Carousel>
+  </div>
+</template>
+
+<script setup>
+const products = [
+  { name: 'Product A', price: 20 },
+  { name: 'Product B', price: 30 },
+  { name: 'Product C', price: 40 }
+]
+</script>
+```
+
+## Image
+```vue
+<template>
+  <div class="card">
+    <Image src="https://primefaces.org/cdn/primeng/images/galleria/galleria1.jpg" alt="Sample Image" width="250" preview />
+  </div>
+</template>
+```
+
+## Avatar
+```vue
+<template>
+  <div class="card flex gap-2 align-items-center">
+    <Avatar label="JD" class="mr-2" size="large" />
+    <Avatar image="https://primefaces.org/cdn/primeng/images/demo/avatar/amyelsner.png" size="large" shape="circle" />
+  </div>
+</template>
+```
+
+## Badge
+```vue
+<template>
+  <div class="card flex gap-3">
+    <Button type="button" label="Inbox" icon="pi pi-envelope">
+      <Badge value="3" />
+    </Button>
+    <Badge value="New" severity="info" />
+  </div>
+</template>
+```
+
+## ProgressBar
+```vue
+<template>
+  <div class="card">
+    <ProgressBar :value="progress" />
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+
+const progress = ref(0)
+
+onMounted(() => {
+  let interval = setInterval(() => {
+    progress.value += 10
+    if (progress.value >= 100) clearInterval(interval)
+  }, 500)
+})
+</script>
+```
+
+## Tag
+```vue
+<template>
+  <div class="card flex gap-2">
+    <Tag value="Active" severity="success" />
+    <Tag value="Inactive" severity="danger" />
+    <Tag value="New" />
+  </div>
+</template>
+```
+

@@ -1,0 +1,196 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Final Media & Misc Component Examples
+
+## Galleria
+```vue
+<template>
+  <div class="card">
+    <Galleria :value="images" :numVisible="3" containerStyle="max-width: 640px" :showThumbnails="true" />
+  </div>
+</template>
+
+<script setup>
+const images = [
+  { itemImageSrc: 'https://primefaces.org/cdn/primeng/images/galleria/galleria1.jpg' },
+  { itemImageSrc: 'https://primefaces.org/cdn/primeng/images/galleria/galleria2.jpg' },
+  { itemImageSrc: 'https://primefaces.org/cdn/primeng/images/galleria/galleria3.jpg' }
+]
+</script>
+```
+
+## ImageCompare
+```vue
+<template>
+  <div class="card" style="max-width: 400px">
+    <ImageCompare leftImage="https://primefaces.org/cdn/primeng/images/galleria/galleria2.jpg"
+                  rightImage="https://primefaces.org/cdn/primeng/images/galleria/galleria1.jpg" />
+  </div>
+</template>
+```
+
+## Chip
+```vue
+<template>
+  <div class="card flex gap-2">
+    <Chip label="VueJS" icon="pi pi-code" />
+    <Chip label="PrimeVue" removable />
+  </div>
+</template>
+```
+
+## FocusTrap
+```vue
+<template>
+  <div class="card">
+    <FocusTrap>
+      <div class="p-3 border-round surface-border">
+        <InputText type="text" placeholder="First Input" class="mb-2" />
+        <InputText type="text" placeholder="Second Input" />
+      </div>
+    </FocusTrap>
+  </div>
+</template>
+```
+
+## Inplace
+```vue
+<template>
+  <div class="card">
+    <Inplace>
+      <template #display>
+        <span>Click to edit</span>
+      </template>
+      <template #content>
+        <InputText v-model="text" />
+      </template>
+    </Inplace>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const text = ref("Editable Text")
+</script>
+```
+
+## ProgressSpinner
+```vue
+<template>
+  <div class="card flex justify-content-center">
+    <ProgressSpinner />
+  </div>
+</template>
+```
+
+## ScrollTop
+```vue
+<template>
+  <div class="card" style="height: 1000px">
+    <p v-for="i in 50" :key="i">Scroll down...</p>
+    <ScrollTop />
+  </div>
+</template>
+```
+
+## Skeleton
+```vue
+<template>
+  <div class="card">
+    <Skeleton width="10rem" class="mb-2" />
+    <Skeleton width="100%" height="2rem" />
+  </div>
+</template>
+```
+
+## AnimateOnScroll
+```vue
+<template>
+  <div class="card">
+    <AnimateOnScroll>
+      <div class="p-3 border-round surface-border">Scroll-triggered content</div>
+    </AnimateOnScroll>
+  </div>
+</template>
+```
+
+## BlockUI
+```vue
+<template>
+  <div class="card">
+    <BlockUI :blocked="loading">
+      <div class="p-3 border-round surface-border">
+        <Button label="Simulate Load" @click="simulateLoad" />
+      </div>
+    </BlockUI>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const loading = ref(false)
+
+function simulateLoad() {
+  loading.value = true
+  setTimeout(() => loading.value = false, 2000)
+}
+</script>
+```
+
+## Ripple
+```vue
+<template>
+  <div class="card">
+    <div class="p-ripple p-3 surface-card border-round text-center">Click me</div>
+  </div>
+</template>
+```
+
+## StyleClass
+```vue
+<template>
+  <div class="card">
+    <Button label="Toggle Panel" icon="pi pi-cog" v-styleclass="{ selector: '@next', toggleClass: 'hidden' }" />
+    <div class="mt-2 border-1 surface-border p-3">Togglable Content</div>
+  </div>
+</template>
+```
+
+## MeterGroup
+```vue
+<template>
+  <div class="card">
+    <MeterGroup :value="data" />
+  </div>
+</template>
+
+<script setup>
+const data = [
+  { label: 'Downloads', value: 80, color: '#42A5F5' },
+  { label: 'Uploads', value: 50, color: '#66BB6A' }
+]
+</script>
+```
+
+## Fluid
+```vue
+<template>
+  <Fluid>
+    <p>This content takes full width of its container.</p>
+  </Fluid>
+</template>
+```
+
+## Terminal
+```vue
+<template>
+  <div class="card">
+    <Terminal welcomeMessage="Welcome to the terminal!" prompt="user@host $" />
+  </div>
+</template>
+```
+

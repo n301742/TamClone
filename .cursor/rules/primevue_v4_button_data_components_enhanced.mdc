@@ -1,0 +1,109 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Enhanced Button & Data Component Examples
+
+## Button
+```vue
+<template>
+  <div class="card flex gap-3">
+    <Button label="Save" icon="pi pi-check" @click="save" />
+    <Button label="Cancel" icon="pi pi-times" severity="secondary" />
+  </div>
+</template>
+
+<script setup>
+function save() {
+  alert("Saved successfully!");
+}
+</script>
+```
+
+## SplitButton
+```vue
+<template>
+  <div class="card">
+    <SplitButton label="Options" :model="items" @click="mainAction" />
+  </div>
+</template>
+
+<script setup>
+const mainAction = () => {
+  alert('Main action triggered');
+};
+
+const items = [
+  { label: 'Update', icon: 'pi pi-refresh', command: () => alert('Updated') },
+  { label: 'Delete', icon: 'pi pi-times', command: () => alert('Deleted') }
+];
+</script>
+```
+
+## DataTable
+```vue
+<template>
+  <div class="card">
+    <DataTable :value="products" paginator :rows="5" responsiveLayout="scroll">
+      <Column field="code" header="Code"></Column>
+      <Column field="name" header="Name"></Column>
+      <Column field="price" header="Price" :body="priceTemplate"></Column>
+    </DataTable>
+  </div>
+</template>
+
+<script setup>
+const products = [
+  { code: 'P100', name: 'Apple', price: 1.2 },
+  { code: 'P200', name: 'Orange', price: 0.8 },
+  { code: 'P300', name: 'Banana', price: 1.0 },
+  { code: 'P400', name: 'Grapes', price: 2.3 },
+  { code: 'P500', name: 'Peach', price: 1.7 },
+];
+
+const priceTemplate = (row) => `$${row.price.toFixed(2)}`;
+</script>
+```
+
+## DataView
+```vue
+<template>
+  <div class="card">
+    <DataView :value="products" layout="grid">
+      <template #grid="slotProps">
+        <div class="col-12 md:col-4">
+          <div class="p-3 border-1 surface-border surface-card border-round">
+            <h5>{{ slotProps.data.name }}</h5>
+            <p>Price: ${{ slotProps.data.price }}</p>
+          </div>
+        </div>
+      </template>
+    </DataView>
+  </div>
+</template>
+
+<script setup>
+const products = [
+  { name: 'Apple', price: 1.2 },
+  { name: 'Orange', price: 0.8 },
+  { name: 'Banana', price: 1.0 }
+];
+</script>
+```
+
+## Paginator
+```vue
+<template>
+  <div class="card">
+    <Paginator :rows="10" :totalRecords="100" @page="onPageChange" />
+  </div>
+</template>
+
+<script setup>
+function onPageChange(event) {
+  console.log('Page changed:', event.page);
+}
+</script>
+```
+

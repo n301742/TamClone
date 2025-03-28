@@ -23,6 +23,7 @@ interface Props {
   isColorPrint?: boolean;
   maxFileSize?: number; // in MB
   showPdfPreview?: boolean; // Whether to show PDF preview
+  showFormTypeFields?: boolean; // Whether to show form type fields
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -30,7 +31,8 @@ const props = withDefaults(defineProps<Props>(), {
   isDuplexPrint: true,
   isColorPrint: false,
   maxFileSize: 10, // 10MB by default
-  showPdfPreview: true // Show PDF preview by default
+  showPdfPreview: true, // Show PDF preview by default
+  showFormTypeFields: true // Show form type fields by default
 });
 
 // Emits
@@ -40,6 +42,7 @@ const emit = defineEmits<{
   (e: 'address-extracted', addressData: AddressExtraction): void;
   (e: 'file-selected', event: { files: File[] }): void;
   (e: 'workflow-complete', result: any): void;
+  (e: 'clear-preview'): void;
 }>();
 
 // State
@@ -60,6 +63,7 @@ const isColorPrintInternal = ref(props.isColorPrint);
 const documentId = ref<string | null>(null);
 const showMetadataEditor = ref<boolean>(false);
 const metadataSubmitting = ref<boolean>(false);
+const error = ref<any>(null);
 
 // Form types for dropdown
 const formTypes = [
@@ -135,6 +139,9 @@ const onSelectedFiles = (event: any) => {
   // Reset the address extraction data
   addressExtraction.value = null;
   
+  // Clear any previous errors
+  error.value = null;
+  
   // Create a preview for the PDF file if it's a valid PDF
   if (selectedFiles.value.length > 0 && selectedFiles.value[0].type === 'application/pdf') {
     const file = selectedFiles.value[0];
@@ -165,6 +172,7 @@ const onClear = () => {
   uploadProgress.value = 0;
   addressExtraction.value = null;
   totalSize.value = 0;
+  error.value = null; // Clear any error state
   
   // Clear PDF preview
   if (pdfSource.value) {
@@ -178,6 +186,9 @@ const onClear = () => {
   currentState.value = 'upload';
   documentId.value = null;
   showMetadataEditor.value = false;
+  
+  // Emit event to clear external previews like PdfAnnotator
+  emit('clear-preview');
 };
 
 const onRemoveFile = (file: File, removeCallback: Function, index: number) => {
@@ -305,6 +316,13 @@ const uploadEvent = async (uploadCallback: Function) => {
         message: 'Scanned PDF detected',
         details: error.response.data
       });
+      
+      // Set error state
+      error.value = {
+        type: 'scanned-pdf',
+        message: 'Scanned PDF detected',
+        details: error.response.data
+      };
     } else {
       // Regular error handling for other types of errors
       toast.add({
@@ -314,6 +332,9 @@ const uploadEvent = async (uploadCallback: Function) => {
         life: 5000
       });
       emit('upload-error', error);
+      
+      // Set error state
+      error.value = error;
     }
     
     // Reset to upload state on error
@@ -399,6 +420,16 @@ const onSelectedRemoveFile = (event: any) => {
   onRemoveFile(file, () => {}, 0);
 };
 
+// Trigger file input click to open file dialog
+const triggerFileUpload = () => {
+  if (fileUploadRef.value && fileUploadRef.value.$el) {
+    const fileInput = fileUploadRef.value.$el.querySelector('input[type=file]');
+    if (fileInput) {
+      fileInput.click();
+    }
+  }
+};
+
 const onUploader = (event: any) => {
   // Extract the upload callback function from the event
   const uploadCallback = event && typeof event === 'object' ? event.uploader || (() => {}) : () => {};
@@ -418,7 +449,7 @@ const onUploader = (event: any) => {
           <p class="text-sm text-gray-500">Drag and drop or click to select</p>
         </div>
         
-        <div>
+        <div v-if="showFormTypeFields">
           <span class="p-float-label">
             <Select 
               id="formType" 
@@ -453,24 +484,15 @@ const onUploader = (event: any) => {
               <span class="font-bold mr-2">PDF Upload</span>
               <span class="text-sm">Max size: {{ props.maxFileSize }}MB</span>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 justify-content-end">
               <!-- Clear button -->
               <Button
                 v-if="fileSelected"
                 type="button"
                 icon="pi pi-times"
                 label="Clear"
-                class="p-button-outlined p-button-danger p-button-sm"
+                class="p-button-outlined p-button-danger p-button-sm justify-content-end"
                 @click="clearCallback"
-              />
-              <!-- Upload button - prominently displayed when a file is selected -->
-              <Button
-                v-if="fileSelected && isValidFile"
-                type="button"
-                icon="pi pi-cloud-upload"
-                label="Upload Document"
-                class="p-button-success p-button-sm"
-                @click="() => uploadEvent(uploadCallback)"
               />
             </div>
           </div>
@@ -478,9 +500,14 @@ const onUploader = (event: any) => {
         
         <template #empty>
           <div class="flex flex-column align-items-center p-5">
-            <i class="pi pi-file-pdf text-5xl mb-3" style="color: var(--primary-color)"></i>
-            <span class="font-semibold mb-2">Drag and drop a PDF here</span>
-            <span class="text-sm mb-5">or click to browse</span>
+            <i class="pi pi-file-pdf text-5xl mb-3" style="color: var(--primary-color);"></i>
+            <div class="flex flex-wrap items-center justify-center gap-1 mb-2">
+              <span class="font-semibold">Drag and drop a PDF here</span>
+              <span class="text-sm">or</span>
+              <button type="button" class="p-link text-primary p-0 hover:underline text-sm" @click="triggerFileUpload">
+                click to browse
+              </button>
+            </div>
           </div>
         </template>
       </FileUpload>
@@ -508,7 +535,7 @@ const onUploader = (event: any) => {
       </div>
       
       <!-- Form Type Selection -->
-      <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div v-if="showFormTypeFields" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <span class="p-float-label">
             <Select 

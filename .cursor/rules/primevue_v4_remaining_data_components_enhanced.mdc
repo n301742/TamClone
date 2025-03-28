@@ -1,0 +1,171 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Remaining Data Component Examples
+
+## Tree
+```vue
+<template>
+  <div class="card">
+    <Tree :value="nodes" selectionMode="single" v-model:selectionKeys="selectedKey" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const selectedKey = ref(null)
+const nodes = [
+  {
+    key: '0',
+    label: 'Documents',
+    children: [
+      { key: '0-0', label: 'Resume.doc' },
+      { key: '0-1', label: 'CoverLetter.doc' }
+    ]
+  },
+  {
+    key: '1',
+    label: 'Pictures',
+    children: [{ key: '1-0', label: 'Vacation.jpg' }]
+  }
+]
+</script>
+```
+
+## TreeTable
+```vue
+<template>
+  <div class="card">
+    <TreeTable :value="nodes" :tableStyle="{ minWidth: '50rem' }">
+      <Column field="name" header="Name" expander />
+      <Column field="size" header="Size" />
+    </TreeTable>
+  </div>
+</template>
+
+<script setup>
+const nodes = [
+  {
+    key: '0',
+    data: { name: 'Documents', size: '75kb' },
+    children: [
+      { key: '0-0', data: { name: 'Resume.doc', size: '25kb' } },
+      { key: '0-1', data: { name: 'CoverLetter.doc', size: '30kb' } }
+    ]
+  }
+]
+</script>
+```
+
+## Timeline
+```vue
+<template>
+  <div class="card">
+    <Timeline :value="events" layout="vertical">
+      <template #content="slotProps">
+        <p>{{ slotProps.item.status }}</p>
+      </template>
+    </Timeline>
+  </div>
+</template>
+
+<script setup>
+const events = [
+  { status: 'Ordered' },
+  { status: 'Shipped' },
+  { status: 'Delivered' }
+]
+</script>
+```
+
+## VirtualScroller
+```vue
+<template>
+  <div class="card">
+    <VirtualScroller :items="items" :itemSize="40" style="height:200px">
+      <template #item="slotProps">
+        <div class="p-2 border-bottom-1 surface-border">{{ slotProps.item }}</div>
+      </template>
+    </VirtualScroller>
+  </div>
+</template>
+
+<script setup>
+const items = Array.from({ length: 1000 }, (_, i) => `Item #${i + 1}`)
+</script>
+```
+
+## PickList
+```vue
+<template>
+  <div class="card">
+    <PickList v-model="lists" dataKey="name" sourceHeader="Available" targetHeader="Selected">
+      <template #item="slotProps">
+        <div>{{ slotProps.item.name }}</div>
+      </template>
+    </PickList>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const source = [
+  { name: 'Apple' },
+  { name: 'Banana' },
+  { name: 'Orange' }
+]
+const target = []
+const lists = ref({ source, target })
+</script>
+```
+
+## OrderList
+```vue
+<template>
+  <div class="card">
+    <OrderList v-model="items" listStyle="height:200px" dataKey="name" dragdrop>
+      <template #item="slotProps">
+        <div class="p-2 border-bottom-1 surface-border">{{ slotProps.item.name }}</div>
+      </template>
+    </OrderList>
+  </div>
+</template>
+
+<script setup>
+const items = [
+  { name: 'Item A' },
+  { name: 'Item B' },
+  { name: 'Item C' }
+]
+</script>
+```
+
+## OrgChart
+```vue
+<template>
+  <div class="card">
+    <OrgChart :value="data" selectionMode="single" />
+  </div>
+</template>
+
+<script setup>
+const data = [{
+  label: 'CEO',
+  children: [
+    {
+      label: 'CTO',
+      children: [{ label: 'Dev Team' }]
+    },
+    {
+      label: 'CFO',
+      children: [{ label: 'Accounting' }]
+    }
+  ]
+}]
+</script>
+```
+

@@ -1,0 +1,176 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Enhanced Form Component Examples
+
+## AutoComplete
+```vue
+<template>
+  <div class="card flex flex-column gap-2">
+    <label for="ac">Search Country</label>
+    <AutoComplete id="ac" v-model="selectedCountry" :suggestions="filteredCountries" @complete="search" field="name" class="w-full" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const selectedCountry = ref(null)
+const filteredCountries = ref([])
+const countries = ['Austria', 'Germany', 'Switzerland', 'France']
+
+function search(event) {
+  filteredCountries.value = countries
+    .filter(c => c.toLowerCase().includes(event.query.toLowerCase()))
+    .map(name => ({ name }))
+}
+</script>
+```
+
+## Checkbox
+```vue
+<template>
+  <div class="card flex align-items-center gap-2">
+    <Checkbox v-model="accept" :binary="true" inputId="accept" />
+    <label for="accept">I agree to the terms and conditions</label>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const accept = ref(false)
+</script>
+```
+
+## ColorPicker
+```vue
+<template>
+  <div class="card">
+    <ColorPicker v-model="color" format="hex" />
+    <div :style="{ backgroundColor: color, width: '100px', height: '50px', marginTop: '10px' }"></div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const color = ref('#42A5F5')
+</script>
+```
+
+## DatePicker
+```vue
+<template>
+  <div class="card">
+    <label for="calendar">Select a date</label>
+    <DatePicker v-model="date" showIcon iconDisplay="input" inputId="calendar" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const date = ref(null)
+</script>
+```
+
+## Editor
+```vue
+<template>
+  <div class="card">
+    <Editor v-model="text" editorStyle="height: 200px" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const text = ref('<p>Write something...</p>')
+</script>
+```
+
+## FloatLabel
+```vue
+<template>
+  <div class="card">
+    <FloatLabel>
+      <InputText id="username" v-model="username" />
+      <label for="username">Username</label>
+    </FloatLabel>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const username = ref('')
+</script>
+```
+
+## InputNumber
+```vue
+<template>
+  <div class="card">
+    <label for="quantity">Quantity</label>
+    <InputNumber v-model="quantity" inputId="quantity" :min="0" :max="100" showButtons buttonLayout="horizontal" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const quantity = ref(10)
+</script>
+```
+
+## InputText
+```vue
+<template>
+  <div class="card">
+    <label for="name">Name</label>
+    <InputText id="name" v-model="name" placeholder="Enter your name" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const name = ref('')
+</script>
+```
+
+## Password
+```vue
+<template>
+  <div class="card">
+    <label for="password">Password</label>
+    <Password v-model="password" inputId="password" toggleMask feedback />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const password = ref('')
+</script>
+```
+
+## Slider
+```vue
+<template>
+  <div class="card">
+    <label for="volume">Volume: {{ volume }}</label>
+    <Slider v-model="volume" :min="0" :max="100" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const volume = ref(50)
+</script>
+```
+

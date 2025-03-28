@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/auth';
 import { useRouter } from 'vue-router';
 import PdfUploader from '../../components/PdfUploader.vue';
 import PdfAnnotator from '../../components/PdfAnnotator.vue';
+import FormTypeSelector from '../../components/FormTypeSelector.vue';
 import type { AddressExtraction } from '../../services/api';
 import nameParserService from '../../services/api/NameParserService';
 
@@ -109,34 +110,15 @@ const showAnnotator = ref(false);
 const pdfUrl = ref<string | null>(null);
 const customPositionInitialized = ref(false);
 
-// Update form type items to include Custom option
-const formTypeItems = [
-  { name: 'DIN 5008 Form A', value: 'formA' },
-  { name: 'DIN 5008 Form B', value: 'formB' },
-  { name: 'DIN 676 Type A', value: 'din676' },
-  { name: 'Custom', value: 'custom' }
-];
-
 // Computed property to determine if repositioning is allowed
 const allowAnnotationRepositioning = computed(() => {
   return selectedFormType.value === 'custom';
 });
 
-// Watch for form type changes to initialize Custom position when first selected
-watch(() => selectedFormType.value, (newValue) => {
-  if (newValue === 'custom' && !customPositionInitialized.value) {
-    // Initialize custom position with Form B coordinates
-    customPositionInitialized.value = true;
-    
-    // Show a hint toast to the user
-    toast.add({
-      severity: 'info',
-      summary: 'Custom Positioning Enabled',
-      detail: 'You can now drag the address window to reposition it. Starting with DIN 5008 Form B layout.',
-      life: 3000
-    });
-  }
-});
+// Handle custom position initialized event
+const handleCustomPositionInitialized = () => {
+  customPositionInitialized.value = true;
+};
 
 // Handle annotation moved event
 const handleAnnotationMoved = (coordinates: any) => {
@@ -342,30 +324,10 @@ const manuallyParseNameWithBackend = async (name: string) => {
         </div>
         
         <!-- Form Type Selection -->
-        <Card class="mb-4">
-          <template #title>
-            <span>Form Standard Selection</span>
-          </template>
-          <template #content>
-            <div class="flex justify-center">
-              <SelectButton 
-                v-model="selectedFormType"
-                :options="formTypeItems" 
-                optionLabel="name" 
-                optionValue="value"
-                aria-labelledby="form-standard-selection"
-              />
-            </div>
-            <small class="block text-center text-gray-500 mt-3">
-              <i class="pi pi-info-circle mr-1"></i>
-              Select the appropriate form standard for your document
-              <span v-if="selectedFormType === 'custom'" class="block mt-2">
-                <i class="pi pi-arrows-alt text-primary mr-1"></i>
-                Custom mode: You can drag the address window annotation to position it exactly where you need.
-              </span>
-            </small>
-          </template>
-        </Card>
+        <FormTypeSelector 
+          v-model="selectedFormType"
+          @custom-position-initialized="handleCustomPositionInitialized"
+        />
         
         <!-- Main Content -->
         <div class="flex flex-col md:flex-row gap-4">

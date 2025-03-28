@@ -1,0 +1,108 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Enhanced Panel & Overlay Component Examples
+
+## Accordion
+```vue
+<template>
+  <div class="card">
+    <Accordion :activeIndex="0">
+      <AccordionTab header="Personal Info">
+        <p>Name: John Doe</p>
+      </AccordionTab>
+      <AccordionTab header="Contact">
+        <p>Email: john@example.com</p>
+      </AccordionTab>
+    </Accordion>
+  </div>
+</template>
+```
+
+## Card
+```vue
+<template>
+  <div class="card">
+    <Card>
+      <template #title>Product Title</template>
+      <template #subtitle>$9.99</template>
+      <template #content>
+        <p>This is a great product.</p>
+      </template>
+      <template #footer>
+        <Button label="Buy Now" icon="pi pi-shopping-cart" />
+      </template>
+    </Card>
+  </div>
+</template>
+```
+
+## Dialog
+```vue
+<template>
+  <div class="card">
+    <Button label="Show Dialog" icon="pi pi-external-link" @click="visible = true" />
+    <Dialog v-model:visible="visible" header="Dialog Example" :modal="true" :draggable="false">
+      <p>Dialog Content</p>
+    </Dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const visible = ref(false)
+</script>
+```
+
+## Tooltip
+```vue
+<template>
+  <div class="card">
+    <Button label="Hover me" icon="pi pi-info-circle" v-tooltip="'More information here...'" />
+  </div>
+</template>
+```
+
+## Drawer
+```vue
+<template>
+  <div class="card">
+    <Button label="Show Drawer" icon="pi pi-arrow-right" @click="visible = true" />
+    <Drawer v-model:visible="visible" position="right" header="Drawer Panel">
+      <p>This is drawer content.</p>
+    </Drawer>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const visible = ref(false)
+</script>
+```
+
+## ConfirmDialog
+```vue
+<template>
+  <div class="card">
+    <Button label="Delete" icon="pi pi-times" @click="confirmDelete" />
+    <ConfirmDialog />
+  </div>
+</template>
+
+<script setup>
+import { confirmDialog } from 'primevue/confirmdialog'
+
+function confirmDelete() {
+  confirmDialog({
+    message: 'Are you sure you want to delete?',
+    header: 'Confirmation',
+    icon: 'pi pi-exclamation-triangle',
+    accept: () => alert('Deleted!'),
+    reject: () => alert('Cancelled')
+  })
+}
+</script>
+```
+

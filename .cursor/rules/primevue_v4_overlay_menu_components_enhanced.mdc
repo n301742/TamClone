@@ -1,0 +1,202 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Enhanced Overlay & Menu Component Examples
+
+## ConfirmPopup
+```vue
+<template>
+  <div class="card">
+    <Button label="Delete" icon="pi pi-times" @click="showPopup($event)" />
+    <ConfirmPopup />
+  </div>
+</template>
+
+<script setup>
+import { confirmPopup } from 'primevue/confirmpopup'
+
+function showPopup(event) {
+  confirmPopup({
+    target: event.currentTarget,
+    message: 'Are you sure?',
+    icon: 'pi pi-exclamation-triangle',
+    accept: () => alert('Confirmed!'),
+    reject: () => alert('Rejected!')
+  })
+}
+</script>
+```
+
+## DynamicDialog
+```vue
+<template>
+  <div class="card">
+    <Button label="Show Dialog" @click="showDialog" />
+  </div>
+</template>
+
+<script setup>
+import { useDialog } from 'primevue/usedialog'
+
+const dialog = useDialog()
+
+function showDialog() {
+  dialog.open(DialogContent, {
+    props: {
+      header: 'Dynamic Dialog',
+      style: { width: '30vw' },
+      modal: true
+    }
+  })
+}
+
+const DialogContent = {
+  template: '<div><p>This is a dynamically created dialog.</p></div>'
+}
+</script>
+```
+
+## Popover
+```vue
+<template>
+  <div class="card">
+    <Button label="Show Popover" icon="pi pi-info-circle" v-popover:info />
+    <Popover target="info">
+      <p>This is a helpful popover message.</p>
+    </Popover>
+  </div>
+</template>
+```
+
+## Breadcrumb
+```vue
+<template>
+  <div class="card">
+    <Breadcrumb :model="items" />
+  </div>
+</template>
+
+<script setup>
+const items = [
+  { label: 'Home' },
+  { label: 'Library' },
+  { label: 'Data' }
+]
+</script>
+```
+
+## ContextMenu
+```vue
+<template>
+  <div class="card">
+    <ContextMenu :model="items" ref="cm" />
+    <div class="p-4 border-1 surface-border" @contextmenu="onRightClick($event)">Right-click here</div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const cm = ref()
+const items = [
+  { label: 'Refresh', icon: 'pi pi-refresh' },
+  { label: 'Delete', icon: 'pi pi-times' }
+]
+function onRightClick(event) {
+  event.preventDefault()
+  cm.value.show(event)
+}
+</script>
+```
+
+## Dock
+```vue
+<template>
+  <div class="card">
+    <Dock :model="items" position="bottom" />
+  </div>
+</template>
+
+<script setup>
+const items = [
+  { label: 'Finder', icon: 'pi pi-folder' },
+  { label: 'Photos', icon: 'pi pi-image' }
+]
+</script>
+```
+
+## MegaMenu
+```vue
+<template>
+  <div class="card">
+    <MegaMenu :model="items" orientation="horizontal" />
+  </div>
+</template>
+
+<script setup>
+const items = [
+  {
+    label: 'Products',
+    items: [
+      [
+        { label: 'New Arrivals' },
+        { label: 'Best Sellers' }
+      ],
+      [
+        { label: 'Discounts' },
+        { label: 'Bundles' }
+      ]
+    ]
+  }
+]
+</script>
+```
+
+## PanelMenu
+```vue
+<template>
+  <div class="card">
+    <PanelMenu :model="items" />
+  </div>
+</template>
+
+<script setup>
+const items = [
+  {
+    label: 'File',
+    icon: 'pi pi-file',
+    items: [{ label: 'New' }, { label: 'Open' }]
+  },
+  {
+    label: 'Edit',
+    icon: 'pi pi-pencil',
+    items: [{ label: 'Cut' }, { label: 'Paste' }]
+  }
+]
+</script>
+```
+
+## TieredMenu
+```vue
+<template>
+  <div class="card">
+    <TieredMenu :model="items" popup ref="menu" />
+    <Button label="Show Menu" @click="toggleMenu" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const menu = ref()
+const items = [
+  { label: 'File', items: [{ label: 'New' }, { label: 'Open' }] },
+  { label: 'Edit', items: [{ label: 'Cut' }, { label: 'Paste' }] }
+]
+
+function toggleMenu(event) {
+  menu.value.toggle(event)
+}
+</script>
+```
+

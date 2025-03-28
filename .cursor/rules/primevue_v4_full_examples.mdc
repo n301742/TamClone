@@ -1,0 +1,1008 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Full Component Examples
+
+## Form Components
+
+### AutoComplete
+```vue
+<template>
+  <autocomplete />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### CascadeSelect
+```vue
+<template>
+  <cascadeselect />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Checkbox
+```vue
+<template>
+  <checkbox />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ColorPicker
+```vue
+<template>
+  <colorpicker />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### DatePicker
+```vue
+<template>
+  <datepicker />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Editor
+```vue
+<template>
+  <editor />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### FloatLabel
+```vue
+<template>
+  <floatlabel />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### IconField
+```vue
+<template>
+  <iconfield />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### IftaLabel
+```vue
+<template>
+  <iftalabel />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### InputGroup
+```vue
+<template>
+  <inputgroup />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### InputMask
+```vue
+<template>
+  <inputmask />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### InputNumber
+```vue
+<template>
+  <inputnumber />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### InputText
+```vue
+<template>
+  <inputtext />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Knob
+```vue
+<template>
+  <knob />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Listbox
+```vue
+<template>
+  <listbox />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### MultiSelect
+```vue
+<template>
+  <multiselect />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Password
+```vue
+<template>
+  <password />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### RadioButton
+```vue
+<template>
+  <radiobutton />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Rating
+```vue
+<template>
+  <rating />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Select
+```vue
+<template>
+  <select />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Slider
+```vue
+<template>
+  <slider />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Textarea
+```vue
+<template>
+  <textarea />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ToggleSwitch
+```vue
+<template>
+  <toggleswitch />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### TreeSelect
+```vue
+<template>
+  <treeselect />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### TriStateCheckbox
+```vue
+<template>
+  <tristatecheckbox />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Button Components
+
+### Button
+```vue
+<template>
+  <button />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### SpeedDial
+```vue
+<template>
+  <speeddial />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### SplitButton
+```vue
+<template>
+  <splitbutton />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Data Components
+
+### DataTable
+```vue
+<template>
+  <datatable />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### DataView
+```vue
+<template>
+  <dataview />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### OrderList
+```vue
+<template>
+  <orderlist />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### OrgChart
+```vue
+<template>
+  <orgchart />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Paginator
+```vue
+<template>
+  <paginator />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### PickList
+```vue
+<template>
+  <picklist />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Timeline
+```vue
+<template>
+  <timeline />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Tree
+```vue
+<template>
+  <tree />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### TreeTable
+```vue
+<template>
+  <treetable />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### VirtualScroller
+```vue
+<template>
+  <virtualscroller />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Panel Components
+
+### Accordion
+```vue
+<template>
+  <accordion />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Card
+```vue
+<template>
+  <card />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Deferred
+```vue
+<template>
+  <deferred />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Divider
+```vue
+<template>
+  <divider />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Fieldset
+```vue
+<template>
+  <fieldset />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Panel
+```vue
+<template>
+  <panel />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ScrollPanel
+```vue
+<template>
+  <scrollpanel />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Splitter
+```vue
+<template>
+  <splitter />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Stepper
+```vue
+<template>
+  <stepper />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Tabs
+```vue
+<template>
+  <tabs />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Toolbar
+```vue
+<template>
+  <toolbar />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Overlay Components
+
+### ConfirmDialog
+```vue
+<template>
+  <confirmdialog />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ConfirmPopup
+```vue
+<template>
+  <confirmpopup />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Dialog
+```vue
+<template>
+  <dialog />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Drawer
+```vue
+<template>
+  <drawer />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### DynamicDialog
+```vue
+<template>
+  <dynamicdialog />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Popover
+```vue
+<template>
+  <popover />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Tooltip
+```vue
+<template>
+  <tooltip />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## File Component
+
+### Upload
+```vue
+<template>
+  <upload />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Menu Components
+
+### Breadcrumb
+```vue
+<template>
+  <breadcrumb />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ContextMenu
+```vue
+<template>
+  <contextmenu />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Dock
+```vue
+<template>
+  <dock />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Menu
+```vue
+<template>
+  <menu />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Menubar
+```vue
+<template>
+  <menubar />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### MegaMenu
+```vue
+<template>
+  <megamenu />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### PanelMenu
+```vue
+<template>
+  <panelmenu />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### TieredMenu
+```vue
+<template>
+  <tieredmenu />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Chart Component
+
+### Chart.js
+```vue
+<template>
+  <chart.js />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Messages Components
+
+### Message
+```vue
+<template>
+  <message />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Toast
+```vue
+<template>
+  <toast />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Media Components
+
+### Carousel
+```vue
+<template>
+  <carousel />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Galleria
+```vue
+<template>
+  <galleria />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Image
+```vue
+<template>
+  <image />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ImageCompare
+```vue
+<template>
+  <imagecompare />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+## Miscellaneous Components
+
+### AnimateOnScroll
+```vue
+<template>
+  <animateonscroll />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Avatar
+```vue
+<template>
+  <avatar />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Badge
+```vue
+<template>
+  <badge />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### BlockUI
+```vue
+<template>
+  <blockui />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Chip
+```vue
+<template>
+  <chip />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### FocusTrap
+```vue
+<template>
+  <focustrap />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Fluid
+```vue
+<template>
+  <fluid />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Inplace
+```vue
+<template>
+  <inplace />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### MeterGroup
+```vue
+<template>
+  <metergroup />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ProgressBar
+```vue
+<template>
+  <progressbar />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ProgressSpinner
+```vue
+<template>
+  <progressspinner />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### ScrollTop
+```vue
+<template>
+  <scrolltop />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Skeleton
+```vue
+<template>
+  <skeleton />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Ripple
+```vue
+<template>
+  <ripple />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### StyleClass
+```vue
+<template>
+  <styleclass />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Tag
+```vue
+<template>
+  <tag />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+
+### Terminal
+```vue
+<template>
+  <terminal />
+</template>
+
+<script setup>
+// Add props, events, or imports if needed for real usage
+</script>
+```
+

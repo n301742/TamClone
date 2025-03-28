@@ -1,0 +1,84 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Enhanced Menu, File & Message Component Examples
+
+## Menu
+```vue
+<template>
+  <div class="card">
+    <Menu :model="items" />
+  </div>
+</template>
+
+<script setup>
+const items = [
+  { label: 'Home', icon: 'pi pi-home' },
+  { label: 'Profile', icon: 'pi pi-user' },
+  { label: 'Settings', icon: 'pi pi-cog' }
+]
+</script>
+```
+
+## Menubar
+```vue
+<template>
+  <div class="card">
+    <Menubar :model="items" />
+  </div>
+</template>
+
+<script setup>
+const items = [
+  { label: 'File', icon: 'pi pi-fw pi-file', items: [
+    { label: 'New', icon: 'pi pi-fw pi-plus' },
+    { label: 'Open', icon: 'pi pi-fw pi-folder-open' }
+  ]},
+  { label: 'Edit', icon: 'pi pi-fw pi-pencil', items: [
+    { label: 'Undo', icon: 'pi pi-fw pi-undo' },
+    { label: 'Redo', icon: 'pi pi-fw pi-redo' }
+  ]}
+]
+</script>
+```
+
+## Upload
+```vue
+<template>
+  <div class="card">
+    <FileUpload name="myfile[]" url="/api/upload" :auto="true" chooseLabel="Browse" />
+  </div>
+</template>
+```
+
+## Message
+```vue
+<template>
+  <div class="card">
+    <Message severity="info" text="Your changes have been saved." />
+  </div>
+</template>
+```
+
+## Toast
+```vue
+<template>
+  <div class="card">
+    <Button label="Show Toast" @click="showToast" />
+    <Toast />
+  </div>
+</template>
+
+<script setup>
+import { useToast } from 'primevue/usetoast'
+
+const toast = useToast()
+
+function showToast() {
+  toast.add({ severity: 'success', summary: 'Success', detail: 'Data submitted successfully', life: 3000 })
+}
+</script>
+```
+

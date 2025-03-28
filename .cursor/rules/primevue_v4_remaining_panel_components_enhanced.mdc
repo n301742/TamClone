@@ -1,0 +1,116 @@
+---
+description: 
+globs: frontend/**/*.*
+alwaysApply: false
+---
+# PrimeVue v4 - Remaining Panel Component Examples
+
+## Tabs
+```vue
+<template>
+  <div class="card">
+    <Tabs>
+      <TabPanel header="Home">
+        <p>Welcome to the home tab.</p>
+      </TabPanel>
+      <TabPanel header="Profile">
+        <p>This is the profile tab.</p>
+      </TabPanel>
+    </Tabs>
+  </div>
+</template>
+```
+
+## Toolbar
+```vue
+<template>
+  <div class="card">
+    <Toolbar>
+      <template #start>
+        <Button label="New" icon="pi pi-plus" class="mr-2" />
+        <Button label="Open" icon="pi pi-folder-open" />
+      </template>
+      <template #end>
+        <Button label="Logout" icon="pi pi-sign-out" severity="danger" />
+      </template>
+    </Toolbar>
+  </div>
+</template>
+```
+
+## Fieldset
+```vue
+<template>
+  <div class="card">
+    <Fieldset legend="User Info">
+      <p>Name: Jane Doe</p>
+      <p>Email: jane@example.com</p>
+    </Fieldset>
+  </div>
+</template>
+```
+
+## Splitter
+```vue
+<template>
+  <div class="card" style="height:300px">
+    <Splitter layout="horizontal">
+      <SplitterPanel :size="50">Left Pane</SplitterPanel>
+      <SplitterPanel :size="50">Right Pane</SplitterPanel>
+    </Splitter>
+  </div>
+</template>
+```
+
+## Divider
+```vue
+<template>
+  <div class="card">
+    <p>Above the line</p>
+    <Divider />
+    <p>Below the line</p>
+  </div>
+</template>
+```
+
+## ScrollPanel
+```vue
+<template>
+  <div class="card">
+    <ScrollPanel style="width: 100%; height: 200px">
+      <p v-for="i in 20" :key="i">Line {{ i }}</p>
+    </ScrollPanel>
+  </div>
+</template>
+```
+
+## Stepper
+```vue
+<template>
+  <div class="card">
+    <Stepper :model="steps" />
+  </div>
+</template>
+
+<script setup>
+const steps = [
+  { label: 'Step 1' },
+  { label: 'Step 2' },
+  { label: 'Step 3' }
+]
+</script>
+```
+
+## Deferred
+```vue
+<template>
+  <div class="card">
+    <Deferred>
+      <template #default>
+        <p>This content is lazy loaded.</p>
+      </template>
+    </Deferred>
+  </div>
+</template>
+```
+

@@ -1,9 +1,7 @@
 <template>
   <div class="document-upload-view">
-    <div class="container mx-auto p-4">
-      <h1 class="text-2xl font-bold mb-6">Document Upload Workflow</h1>
-      
-      <div class="card p-4 shadow-sm rounded-lg">
+    <div class="card p-0">
+      <div class="p-4">
         <h2 class="text-xl font-semibold mb-4">Upload, Edit Metadata, and Send to BriefButler</h2>
         <p class="mb-4 text-gray-600">
           This workflow allows you to upload PDF documents, extract and edit metadata, 
@@ -33,19 +31,63 @@
             </ul>
           </div>
           
-          <!-- Main workflow area -->
-          <div class="document-uploader-container mb-4">
-            <PdfUploader 
-              @upload-success="handleUploadSuccess" 
-              @address-extracted="handleAddressExtracted"
-              @file-selected="handleFileSelected"
-              @workflow-complete="handleWorkflowComplete"
-              :formType="formType"
-              :isDuplexPrint="isDuplexPrint"
-              :isColorPrint="isColorPrint"
-              :maxFileSize="10"
-              :showPdfPreview="true"
-            />
+          <div class="flex flex-col md:flex-row gap-4">
+            <!-- Left Column: Form Selection and Upload -->
+            <div class="w-full md:w-8/12">
+              <!-- Form Type Selection -->
+              <div class="mb-4">
+                <FormTypeSelector 
+                  v-model="selectedFormType"
+                />
+              </div>
+              
+              <!-- Main workflow area -->
+              <div class="document-uploader-container mb-4">
+                <PdfUploader 
+                  @upload-success="handleUploadSuccess" 
+                  @address-extracted="handleAddressExtracted"
+                  @file-selected="handleFileSelected"
+                  @upload-error="handleUploadError"
+                  @workflow-complete="handleWorkflowComplete"
+                  @clear-preview="handleClearPreview"
+                  :formType="getFormType(selectedFormType)"
+                  :maxFileSize="10"
+                  :showPdfPreview="false"
+                  :showFormTypeFields="false"
+                />
+                
+                <!-- PDF Annotator Component -->
+                <div v-if="showAnnotator && pdfUrl" class="mt-4 border-1 surface-border p-3 border-round">
+                  <div class="flex justify-content-between align-items-center mb-2">
+                    <h6 class="text-sm font-medium m-0">Address Window Visualization</h6>
+                    <Tag v-if="selectedFormType === 'custom'" severity="info" value="Custom Positioning Enabled" />
+                  </div>
+                  
+                  <PdfAnnotator
+                    :source="pdfUrl"
+                    :formType="getFormType(selectedFormType)"
+                    :allowReposition="allowAnnotationRepositioning"
+                    @annotation-moved="handleAnnotationMoved"
+                  />
+                  
+                  <small class="block text-gray-500 mt-2">
+                    <i class="pi pi-info-circle mr-1"></i> 
+                    This visualization shows where the address information will be extracted.
+                    <span v-if="selectedFormType === 'custom'"> Drag the blue rectangle to reposition.</span>
+                  </small>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Right Column: Address Extraction Results -->
+            <div class="w-full md:w-4/12">
+              <AddressExtractionResult 
+                :extractedAddress="extractedAddress"
+                :isScannedPdfDetected="isScannedPdfDetected"
+                :scannedPdfError="scannedPdfError"
+                @parse-name="parseNameWithBackendService"
+              />
+            </div>
           </div>
           
           <!-- Success message when workflow is complete -->
@@ -67,17 +109,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import PdfUploader from '../components/PdfUploader.vue';
+import FormTypeSelector from '../components/FormTypeSelector.vue';
+import AddressExtractionResult from '../components/AddressExtractionResult.vue';
+import PdfAnnotator from '../components/PdfAnnotator.vue';
 import type { AddressExtraction } from '../services/api';
 import { useToast } from 'primevue/usetoast';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import nameParserService from '../services/api/NameParserService';
 
 const toast = useToast();
-
-// Form settings
-const formType = ref<'formA' | 'formB' | 'din676'>('formB');
-const isDuplexPrint = ref(true);
-const isColorPrint = ref(false);
 
 // Define workflow steps
 const workflowSteps = [
@@ -90,6 +133,19 @@ const workflowSteps = [
 // Track current step
 const currentStep = ref(0);
 const processingComplete = ref(false);
+const selectedFormType = ref('formB');
+const extractedAddress = ref<AddressExtraction | null>(null);
+const isScannedPdfDetected = ref(false);
+const scannedPdfError = ref<any>(null);
+
+// Add variables for PdfAnnotator
+const showAnnotator = ref(false);
+const pdfUrl = ref<string | null>(null);
+
+// Computed property to determine if repositioning is allowed
+const allowAnnotationRepositioning = computed(() => {
+  return selectedFormType.value === 'custom';
+});
 
 // Event handlers
 const handleFileSelected = (event: any) => {
@@ -97,11 +153,35 @@ const handleFileSelected = (event: any) => {
   processingComplete.value = false;
   console.log('File selected:', event.files);
   
+  // Generate a URL for the PDF and show annotator
+  if (event && event.files && event.files.length > 0) {
+    const file = event.files[0];
+    
+    // Generate a URL for the PDF
+    if (pdfUrl.value) {
+      URL.revokeObjectURL(pdfUrl.value);
+    }
+    pdfUrl.value = URL.createObjectURL(file);
+    showAnnotator.value = true;
+  }
+  
   toast.add({
     severity: 'info',
     summary: 'File Selected',
     detail: 'Click the "Upload" button to process the document',
     life: 5000
+  });
+};
+
+// Handle annotation moved event
+const handleAnnotationMoved = (coordinates: any) => {
+  console.log('📐 Address window annotation moved:', coordinates);
+  
+  toast.add({
+    severity: 'info',
+    summary: 'Address Window Repositioned',
+    detail: 'The custom position will be used for future extraction attempts',
+    life: 3000
   });
 };
 
@@ -115,11 +195,19 @@ const handleUploadSuccess = (result: any) => {
     detail: 'Document uploaded successfully. Extracting metadata...',
     life: 3000
   });
+  
+  // Store address extraction data if available
+  if (result.addressExtraction) {
+    extractedAddress.value = result.addressExtraction;
+  }
 };
 
 const handleAddressExtracted = (addressData: AddressExtraction) => {
   console.log('Address extracted:', addressData);
   currentStep.value = 2;
+  
+  // Store the extracted address data
+  extractedAddress.value = addressData;
   
   toast.add({
     severity: 'success',
@@ -147,6 +235,58 @@ const handleWorkflowComplete = (result: any) => {
     detail: `Document has been successfully sent to BriefButler with ID: ${result.documentId || 'custom ID'}`,
     life: 3000
   });
+};
+
+// Handle upload errors
+const handleUploadError = (error: any) => {
+  console.error('🛑 Upload error:', error);
+  
+  // Check if this is a scanned PDF error
+  if (error.type === 'scanned-pdf') {
+    console.log('📑 Handling scanned PDF error:', error);
+    isScannedPdfDetected.value = true;
+    scannedPdfError.value = error;
+  } else {
+    // Reset scanned PDF flag for other errors
+    isScannedPdfDetected.value = false;
+    scannedPdfError.value = null;
+  }
+};
+
+// Parse name using the backend service when components are missing
+const parseNameWithBackendService = async (nameValue: string) => {
+  if (!nameValue) return;
+  
+  try {
+    const parsedName = await nameParserService.parseName(nameValue);
+    
+    if (extractedAddress.value && parsedName) {
+      // Update the name components in the extracted address
+      if (parsedName.firstName) {
+        extractedAddress.value.firstName = parsedName.firstName;
+      }
+      
+      if (parsedName.lastName) {
+        extractedAddress.value.lastName = parsedName.lastName;
+      }
+      
+      if (parsedName.academicTitle) {
+        extractedAddress.value.academicTitle = parsedName.academicTitle;
+      }
+    }
+  } catch (error) {
+    console.error('Error parsing name:', error);
+  }
+};
+
+// Get form type from the selector component
+const getFormType = (type: string): 'formA' | 'formB' | 'din676' => {
+  return (type === 'custom' ? 'formB' : type) as 'formA' | 'formB' | 'din676';
+};
+
+const handleClearPreview = () => {
+  showAnnotator.value = false;
+  pdfUrl.value = null;
 };
 </script>
 
@@ -178,5 +318,20 @@ const handleWorkflowComplete = (result: any) => {
 .document-uploader-container {
   max-width: 800px;
   margin: 0 auto;
+}
+
+.card {
+  padding: 1.5rem;
+  margin-top: 0;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.document-upload-view {
+  height: 100%;
+}
+
+.container {
+  padding: 0.75rem;
 }
 </style> 
