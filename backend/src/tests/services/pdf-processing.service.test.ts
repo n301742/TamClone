@@ -287,9 +287,9 @@ describe('PdfProcessingService', () => {
       });
     });
     
-    it('should handle address without state', () => {
+    it('should handle address without state', async () => {
       // Call the private method using any type assertion
-      const result = (pdfProcessingService as any).parseAddressFromText(
+      const result = await (pdfProcessingService as any).parseAddressFromText(
         'Max Mustermann\nMusterstraße 123\n12345 Berlin\nDeutschland'
       );
       
@@ -303,9 +303,9 @@ describe('PdfProcessingService', () => {
       });
     });
     
-    it('should handle address without postal code', () => {
+    it('should handle address without postal code', async () => {
       // Call the private method using any type assertion
-      const result = (pdfProcessingService as any).parseAddressFromText(
+      const result = await (pdfProcessingService as any).parseAddressFromText(
         'Max Mustermann\nMusterstraße 123\n12345 Berlin\nDeutschland'
       );
       
@@ -319,9 +319,9 @@ describe('PdfProcessingService', () => {
       });
     });
     
-    it('should handle minimal address', () => {
+    it('should handle minimal address', async () => {
       // Call the private method using any type assertion
-      const result = (pdfProcessingService as any).parseAddressFromText(
+      const result = await (pdfProcessingService as any).parseAddressFromText(
         'Max Mustermann\nMusterstraße 123'
       );
       
@@ -332,9 +332,9 @@ describe('PdfProcessingService', () => {
       });
     });
     
-    it('should return empty object for insufficient lines', () => {
+    it('should return empty object for insufficient lines', async () => {
       // Call the private method using any type assertion
-      const result = (pdfProcessingService as any).parseAddressFromText(
+      const result = await (pdfProcessingService as any).parseAddressFromText(
         'Max Mustermann'
       );
       
@@ -452,7 +452,7 @@ describe('PdfProcessingService', () => {
       const result = await pdfProcessingService.extractAddressFromPdf('test.pdf', AddressFormType.FORM_A);
       
       // Assertions
-      expect(mockPerformOcr).toHaveBeenCalledWith('test.pdf');
+      expect(mockPerformOcr).toHaveBeenCalledWith('test.pdf', 'formA');
       expect(result).toMatchObject({
         name: 'Max Mustermann',
         street: 'Musterstraße 123',

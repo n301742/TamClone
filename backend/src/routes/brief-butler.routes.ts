@@ -1,8 +1,8 @@
-import express from 'express';
+import { Router } from 'express';
 import { briefButlerController } from '../controllers/brief-butler.controller';
 import { briefButlerService } from '../services/brief-butler.service';
 
-const router = express.Router();
+const router = Router();
 
 /**
  * BriefButler API routes
@@ -55,5 +55,20 @@ router.get('/test-mock', (req, res) => {
 
 // Add a test route for the spool service
 router.post('/spool/test', briefButlerController.testSpoolService);
+
+// Submit document for dual delivery
+router.post('/dual-delivery', briefButlerController.submitDualDelivery);
+
+// Get status by tracking ID
+router.get('/status/:trackingId', briefButlerController.getStatus);
+
+// Get status by delivery ID and profile ID
+router.get('/status-by-delivery/:deliveryId/:profileId', briefButlerController.getStatusByDelivery);
+
+// Get document content
+router.get('/document/:trackingId/:documentId/:documentVersion', briefButlerController.getDocument);
+
+// Get receipt document
+router.get('/receipt/:trackingId/:documentId/:documentVersion', briefButlerController.getReceipt);
 
 export default router; 

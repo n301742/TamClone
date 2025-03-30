@@ -100,6 +100,33 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * Refresh the access token using refresh token
+   */
+  async function refreshToken() {
+    loading.value = true;
+    error.value = null;
+    
+    try {
+      // Check if we have a refresh token
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+      
+      // Get new tokens from server
+      const tokens = await authService.refreshToken();
+      return tokens;
+    } catch (err: any) {
+      error.value = err.message || 'Failed to refresh authentication';
+      // If refresh fails, logout the user
+      await logout();
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * Fetch current user profile
    */
   async function fetchCurrentUser() {
@@ -162,6 +189,7 @@ export const useAuthStore = defineStore('auth', () => {
     checkApiConnectivity,
     login,
     register,
+    refreshToken,
     fetchCurrentUser,
     logout
   };

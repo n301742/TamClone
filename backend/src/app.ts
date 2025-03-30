@@ -49,6 +49,7 @@ import letterRoutes from './routes/letter.routes';
 import addressBookRoutes from './routes/address-book.routes';
 import utilsRoutes from './routes/api.routes';
 import briefButlerRoutes from './routes/brief-butler.routes';
+import senderProfileRoutes from './routes/sender-profile.routes';
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -62,6 +63,7 @@ app.use('/api/letters', letterRoutes);
 app.use('/api/address-book', addressBookRoutes);
 app.use('/api', utilsRoutes);
 app.use('/api/brief-butler', briefButlerRoutes);
+app.use('/api/sender-profiles', senderProfileRoutes);
 
 // Health check endpoints
 app.get('/health', (req, res) => {

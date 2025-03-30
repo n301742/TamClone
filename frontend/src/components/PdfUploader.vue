@@ -255,11 +255,30 @@ const uploadEvent = async (uploadCallback: Function) => {
       }
     );
 
-    console.log('✅ Upload response received:', result);
+    // Log the full response structure for debugging
+    console.log('✅ Upload response received:');
+    console.log('- Response structure:', JSON.stringify({
+      hasId: !!result.id,
+      hasLetter: !!result.letter,
+      letterHasId: result.letter ? !!result.letter.id : false,
+      letterIdValue: result.letter ? result.letter.id : null,
+      idValue: result.id || null,
+      hasAddressExtraction: !!result.addressExtraction,
+      letterHasAddressExtraction: result.letter ? !!result.letter.addressExtraction : false,
+    }));
+    console.log('- Full response:', result);
     
     // Store document ID for later use with BriefButler
     if (result.id) {
       documentId.value = result.id;
+      console.log('📝 Document ID from upload:', result.id);
+    } else if (result.letter && result.letter.id) {
+      // Extract ID from nested letter object if available
+      documentId.value = result.letter.id;
+      console.log('📝 Document ID from letter object:', result.letter.id);
+    } else {
+      console.warn('⚠️ No document ID found in response, generating temporary ID');
+      documentId.value = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     }
 
     toast.add({
@@ -278,6 +297,15 @@ const uploadEvent = async (uploadCallback: Function) => {
       // Move to metadata editing step
       currentState.value = 'metadata';
       showMetadataEditor.value = true;
+    } else if (result.letter && result.letter.addressExtraction) {
+      // Handle nested structure where addressExtraction is in the letter object
+      console.log('📋 Address extraction data from letter object:', result.letter.addressExtraction);
+      addressExtraction.value = result.letter.addressExtraction;
+      emit('address-extracted', result.letter.addressExtraction);
+      
+      // Move to metadata editing step
+      currentState.value = 'metadata';
+      showMetadataEditor.value = true;
     } else {
       console.warn('⚠️ No address extraction data in response');
       // Still move to metadata step but without pre-filled data
@@ -285,10 +313,11 @@ const uploadEvent = async (uploadCallback: Function) => {
       showMetadataEditor.value = true;
     }
 
-    // Emit the upload success event
+    // Emit the upload success event with correct document ID
+    const idToEmit = documentId.value || (result.letter && result.letter.id ? result.letter.id : result.id);
     emit('upload-success', { 
-      id: result.id,
-      addressExtraction: result.addressExtraction
+      id: idToEmit,
+      addressExtraction: result.addressExtraction || (result.letter ? result.letter.addressExtraction : null)
     });
 
     // Don't clear selected files yet, as we need to keep the preview during metadata editing

@@ -2,12 +2,17 @@
 
 This document provides a comprehensive reference for the BriefButler API endpoints, authentication methods, and request/response formats.
 
-> **Source**: https://developers.briefbutler.com/docs/spool.html#tag/BriefButler
+> **Sources**: 
+> - Spool API: https://developers.briefbutler.com/docs/spool.html#tag/Versand-Schnittstelle
+> - Status API: https://developers.briefbutler.com/docs/status.html
 
-## Base URL
+## Base URLs
+
+BriefButler provides two main API endpoints:
 
 ```
-https://demodelivery.briefbutler.com
+https://demodelivery.briefbutler.com/endpoint-spool/ - For document submission
+https://demodelivery.briefbutler.com/endpoint-status/ - For status tracking
 ```
 
 ## Authentication
@@ -22,34 +27,69 @@ The BriefButler API uses client certificate authentication (mutual TLS). You mus
 
 ## API Endpoints
 
-### Submit Letter
+### Submit Document for Delivery
 
-Submits a new letter for printing and delivery.
+Submits documents for printing and delivery.
 
 ```
-POST /letter
+POST /endpoint-spool/dualDelivery
 ```
 
 #### Request Body
 
 ```json
 {
-  "document": "base64_encoded_pdf_content",
-  "profile_id": "sender_profile_id",
-  "recipient": {
-    "name": "Recipient Name",
-    "address": "Street Address",
-    "city": "City",
-    "zip": "Postal Code",
-    "country": "Country Code",
-    "state": "State/Province (optional)"
+  "metadata": {
+    "deliveryId": "MeineRueckscheinID_001",
+    "caseId": "20210921T060003-20dcb6fe-6fe9-4b37-8b92-5c713801689b"
   },
-  "options": {
-    "express": false,
-    "registered": true,
-    "color": false,
-    "duplex": true
-  }
+  "configuration": {
+    "deliveryProfile": "MeinProfil-1",
+    "allowEmail": true,
+    "costcenter": "testcostcenter"
+  },
+  "receiver": {
+    "email": "max.mustermann@mailhost.com",
+    "phoneNumber": "+436641234567",
+    "recipient": {
+      "physicalPerson": {
+        "familyName": "Mustermann",
+        "givenName": "Max",
+        "dateOfBirth": "1975-10-25"
+      }
+    },
+    "postalAddress": {
+      "street": "Teststrasse",
+      "number": "21/2/4",
+      "postalCode": "1030",
+      "city": "Wien",
+      "countryCode": "AT"
+    }
+  },
+  "sender": {
+    "person": {
+      "legalPerson": {
+        "name": "Testfirma"
+      }
+    },
+    "postalAddress": {
+      "street": "Senderstrasse",
+      "number": "1",
+      "postalCode": "1010",
+      "city": "Wien",
+      "countryCode": "AT"
+    }
+  },
+  "subject": "Test Zustellung",
+  "documents": [
+    {
+      "content": "base64_encoded_pdf_content",
+      "mimeType": "application/pdf",
+      "name": "test.pdf",
+      "type": "Standard",
+      "realm": "GENERAL"
+    }
+  ]
 }
 ```
 
@@ -57,89 +97,108 @@ POST /letter
 
 ```json
 {
-  "tracking_id": "tracking_id_for_the_letter",
-  "status": "processing",
-  "timestamp": "ISO-8601 timestamp"
+  "trackingId": "20220513T084530-2b4fb08f-64a5-4b23-b7e4-5f5635e22ba1"
 }
 ```
 
-### Check Letter Status
+### Check Document Status by Tracking ID
 
-Retrieves the current status of a letter.
+Retrieves the current status of a document by its tracking ID.
 
 ```
-GET /status/{tracking_id}
+GET /endpoint-status/message/trackingId/{trackingId}
 ```
 
 #### Response
 
 ```json
 {
-  "tracking_id": "tracking_id_for_the_letter",
-  "status": "processing|printed|shipped|delivered|returned|cancelled",
-  "timestamp": "ISO-8601 timestamp",
-  "details": {
-    "delivery_date": "ISO-8601 timestamp (if delivered)",
-    "estimated_arrival": "ISO-8601 timestamp (if in transit)",
-    "current_location": "Location information (if available)",
-    "events": [
+  "trackingId": "20220513T084530-2b4fb08f-64a5-4b23-b7e4-5f5635e22ba1",
+  "recoIds": ["5f5635e22ba1"],
+  "deliveryId": "2b4fb08f-64a5-4b23-b7e4-5f5635e22ba1",
+  "state": {
+    "timestamp": "2020-01-01T08:59:32Z",
+    "created": "2020-01-01T08:59:32Z",
+    "updated": "2020-01-01T08:59:32Z",
+    "channel": "regmail",
+    "stateName": "delivery-fetched",
+    "stateCode": 410,
+    "returnReceiptDocuments": [
       {
-        "date": "ISO-8601 timestamp",
-        "description": "Event description",
-        "location": "Event location (if applicable)"
+        "documentId": "2b4fb08f-64a5-4b23-b7e4-5f5635e22ba1",
+        "name": "confirm_receipt.pdf"
+      }
+    ],
+    "outgoingDocuments": [
+      {
+        "documentId": "2b4fb08f-64a5-4b23-b7e4-5f5635e22ba1/0",
+        "name": "invoice.pdf",
+        "type": "Standard",
+        "mimetype": "application/pdf",
+        "size": 1024,
+        "createdAt": "2024-11-04T13:48:53.379900306Z",
+        "availableUntil": "2024-11-04T13:48:53.379900306Z"
+      }
+    ],
+    "details": [
+      {
+        "detailStateName": "regmail-fetched",
+        "detailStateCode": 1201,
+        "timestamp": "2020-01-01T08:59:32Z",
+        "additionalData": {
+          "someKey": "someValue"
+        }
       }
     ]
-  }
+  },
+  "history": [
+    {
+      "timestamp": "2020-01-01T08:59:32Z",
+      "created": "2020-01-01T08:59:32Z",
+      "updated": "2020-01-01T08:59:32Z",
+      "channel": "regmail",
+      "stateName": "delivery-fetched",
+      "stateCode": 410
+    }
+  ]
 }
 ```
 
-### Cancel Letter
+### Check Document Status by Delivery ID and Profile ID
 
-Cancels a letter that hasn't been printed yet.
+Retrieves the current status of documents by their delivery ID and profile ID.
 
 ```
-POST /cancel/{tracking_id}
+GET /endpoint-status/message/deliveryId/{deliveryId}/{profileId}
 ```
 
 #### Response
 
-```json
-{
-  "tracking_id": "tracking_id_for_the_letter",
-  "status": "cancelled",
-  "timestamp": "ISO-8601 timestamp"
-}
-```
+The response is an array of status objects similar to the tracking ID endpoint.
 
-### Get User Profiles
+### Get Outgoing Document Content
 
-Retrieves all available sender profiles for a user.
+Retrieves the content of an outgoing document by its tracking ID, document ID and version.
 
 ```
-GET /profiles/{user_id}
+GET /endpoint-status/message/outgoingDocument/{trackingId}/{documentId}/{documentVersion}
 ```
 
-#### Response
+The response is the binary content of the document.
 
-```json
-[
-  {
-    "id": "profile_id",
-    "name": "Profile Name",
-    "address": "Sender Address",
-    "city": "Sender City",
-    "zip": "Sender Postal Code",
-    "country": "Sender Country Code",
-    "state": "Sender State/Province (if applicable)",
-    "default_sender": true
-  }
-]
+### Get Return Receipt Document
+
+Retrieves the content of a return receipt document by its tracking ID, document ID and version.
+
 ```
+GET /endpoint-status/message/returnReceipt/{trackingId}/{documentId}/{documentVersion}
+```
+
+The response is the binary content of the document.
 
 ## Status Codes
 
 - **200 OK**: The request was successful
-- **201 Created**: The resource was successfully created
 - **400 Bad Request**: The request was invalid
 - **401 Unauthorized**: Authentication failed
 - **403 Forbidden**: The client doesn't have permission
@@ -190,31 +249,57 @@ const apiClient = axios.create({
   },
 });
 
-// Submit a letter
-async function submitLetter() {
+// Submit documents for delivery
+async function submitDocuments() {
   try {
-    const response = await apiClient.post('/letter', {
-      document: 'base64_encoded_pdf_content',
-      profile_id: 'sender_profile_id',
-      recipient: {
-        name: 'Recipient Name',
-        address: 'Street Address',
-        city: 'City',
-        zip: 'Postal Code',
-        country: 'Country Code',
+    const requestBody = {
+      metadata: {
+        deliveryId: 'MyDeliveryID_001',
       },
-      options: {
-        express: false,
-        registered: true,
-        color: false,
-        duplex: true,
+      configuration: {
+        deliveryProfile: 'MyProfile-1',
+        allowEmail: true,
       },
-    });
+      receiver: {
+        recipient: {
+          physicalPerson: {
+            familyName: 'Doe',
+            givenName: 'John',
+          }
+        },
+        postalAddress: {
+          street: 'Main Street',
+          number: '10',
+          postalCode: '10001',
+          city: 'New York',
+          countryCode: 'US',
+        }
+      },
+      sender: {
+        person: {
+          legalPerson: {
+            name: 'Company Name',
+          }
+        }
+      },
+      subject: 'Important Document',
+      documents: [
+        {
+          content: 'base64_encoded_pdf_content',
+          mimeType: 'application/pdf',
+          name: 'document.pdf',
+          type: 'Standard',
+          realm: 'GENERAL',
+        }
+      ]
+    };
     
-    console.log('Letter submitted:', response.data);
+    const response = await apiClient.post('/endpoint-spool/dualDelivery', requestBody);
+    
+    console.log('Document submitted:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Error submitting letter:', error.message);
+    console.error('Error submitting document:', error.message);
     throw error;
   }
 }
@@ -247,14 +332,14 @@ const apiClient = axios.create({
   },
 });
 
-// Check letter status
-async function checkLetterStatus(trackingId) {
+// Check document status
+async function checkDocumentStatus(trackingId) {
   try {
-    const response = await apiClient.get(`/status/${trackingId}`);
-    console.log('Letter status:', response.data);
+    const response = await apiClient.get(`/endpoint-status/message/trackingId/${trackingId}`);
+    console.log('Document status:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Error checking letter status:', error.message);
+    console.error('Error checking document status:', error.message);
     throw error;
   }
 }
@@ -283,8 +368,8 @@ BriefButler supports webhooks for status updates. Configure your webhook URL in 
 
 ```json
 {
-  "event": "letter_status_changed",
-  "tracking_id": "tracking_id_for_the_letter",
+  "event": "document_status_changed",
+  "trackingId": "tracking_id_for_the_document",
   "status": "new_status",
   "timestamp": "ISO-8601 timestamp",
   "details": {

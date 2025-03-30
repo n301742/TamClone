@@ -229,12 +229,36 @@ const handleWorkflowComplete = (result: any) => {
   
   processingComplete.value = true;
   
-  toast.add({
-    severity: 'success',
-    summary: 'Process Complete',
-    detail: `Document has been successfully sent to BriefButler with ID: ${result.documentId || 'custom ID'}`,
-    life: 3000
-  });
+  // Add BriefButler tracking ID to the success message if available
+  const briefButlerId = result.response?.briefButlerId || result.response?.data?.spool_id || 'pending';
+  const isSuccess = result.response?.success === true;
+  const errorMessage = result.response?.error || result.response?.message || '';
+  
+  if (isSuccess) {
+    toast.add({
+      severity: 'success',
+      summary: 'Process Complete',
+      detail: `Document has been successfully sent to BriefButler with tracking ID: ${briefButlerId}`,
+      life: 5000
+    });
+  } else {
+    toast.add({
+      severity: 'warn',
+      summary: 'Process Completed with Issues',
+      detail: `Document was processed, but there may be issues with the BriefButler service: ${errorMessage}`,
+      life: 8000
+    });
+    
+    // Add a detailed error toast for debugging
+    if (errorMessage) {
+      toast.add({
+        severity: 'info',
+        summary: 'BriefButler API Response',
+        detail: `API Response: ${JSON.stringify(result.response || {})}`,
+        life: 10000
+      });
+    }
+  }
 };
 
 // Handle upload errors

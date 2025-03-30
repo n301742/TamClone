@@ -26,13 +26,28 @@ router.post('/login', validateRequest(loginSchema), authController.login);
  * @access Public
  */
 router.get('/google', (req, res, next) => {
-  // Pass redirect_uri to state to ensure it persists through OAuth flow
-  const redirectUri = req.query.redirect_uri as string;
-  const state = redirectUri ? Buffer.from(JSON.stringify({ redirect_uri: redirectUri })).toString('base64') : undefined;
+  console.log('Starting Google authentication flow');
+  console.log('Query params:', req.query);
+  
+  const redirectUri = req.query.redirect_uri;
+  if (redirectUri) {
+    // Store redirect_uri in session or query param to retain after callback
+    req.query.state = Buffer.from(JSON.stringify({ redirectUri })).toString('base64');
+    console.log('Added state with redirectUri:', redirectUri);
+  }
+  
+  // Add a second level of debugging to help identify issues
+  console.log('Authenticating with Google using passport strategy');
   
   passport.authenticate('google', {
-    scope: ['profile', 'email'],
-    state
+    scope: [
+      'profile', 
+      'email',
+      'openid'
+    ],
+    accessType: 'offline',
+    prompt: 'consent',
+    session: false
   })(req, res, next);
 });
 
@@ -43,23 +58,52 @@ router.get('/google', (req, res, next) => {
  */
 router.get('/google/callback', 
   (req, res, next) => {
-    // Get state parameter to retrieve redirect_uri
-    const { state } = req.query;
-    if (state) {
+    console.log('Received Google callback with query params:', req.query);
+    // Parse state if it exists
+    if (req.query.state) {
       try {
-        const decodedState = JSON.parse(Buffer.from(state as string, 'base64').toString());
-        if (decodedState.redirect_uri) {
-          req.query.redirect_uri = decodedState.redirect_uri;
+        const stateObj = JSON.parse(Buffer.from(req.query.state as string, 'base64').toString());
+        if (stateObj.redirectUri) {
+          req.query.redirect_uri = stateObj.redirectUri;
+          console.log('Retrieved redirectUri from state:', stateObj.redirectUri);
         }
-      } catch (error) {
-        console.error('Error parsing state parameter:', error);
+      } catch (err) {
+        console.error('Error parsing state:', err);
       }
     }
     
-    passport.authenticate('google', { session: false })(req, res, next);
+    // Check for error parameter which indicates OAuth failure
+    if (req.query.error) {
+      console.error('Google OAuth error:', req.query.error);
+      return res.redirect(`/api/auth/google/failure?error=${encodeURIComponent(req.query.error as string)}`);
+    }
+    
+    next();
+  },
+  (req, res, next) => {
+    console.log('Calling passport.authenticate for callback');
+    passport.authenticate('google', { 
+      session: false,
+      failureRedirect: '/api/auth/google/failure'
+    })(req, res, next);
   },
   authController.googleCallback
 );
+
+/**
+ * @route GET /api/auth/google/failure
+ * @desc Handle Google OAuth failure
+ * @access Public
+ */
+router.get('/google/failure', (req, res) => {
+  console.log('Google authentication failed');
+  const errorMsg = req.query.error ? `Error: ${req.query.error}` : 'Authentication failed';
+  console.error('Failure details:', errorMsg);
+  
+  // Redirect to frontend with error
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  res.redirect(`${frontendUrl}/auth/callback?error=${encodeURIComponent(errorMsg)}`);
+});
 
 /**
  * @route GET /api/auth/me

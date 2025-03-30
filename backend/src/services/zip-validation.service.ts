@@ -1,5 +1,21 @@
 import { prisma } from '../app';
 
+// Simple logging function to avoid logging during tests
+function log(message: string, ...args: any[]) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  console.log(message, ...args);
+}
+
+// Simple error logging function to avoid logging during tests
+function errorLog(message: string, ...args: any[]) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  console.error(message, ...args);
+}
+
 /**
  * Interface for ZIP code database entry
  */
@@ -32,10 +48,10 @@ export class ZipValidationService {
     try {
       // Check if we have any ZIP codes in the database
       const count = await prisma.zipCode.count();
-      console.log(`ZIP code validation service initialized with ${count} entries in database`);
+      log(`ZIP code validation service initialized with ${count} entries in database`);
       this.isInitialized = true;
     } catch (error) {
-      console.error('Failed to initialize ZIP code validation service:', error);
+      errorLog('Failed to initialize ZIP code validation service:', error);
       // Continue without ZIP validation if database can't be accessed
       this.isInitialized = true;
     }
@@ -82,7 +98,7 @@ export class ZipValidationService {
     const country = this.getCountryFromZipCode(cleanZip);
     
     if (!country) {
-      console.log(`Invalid ZIP code format: ${zipCode}`);
+      log(`Invalid ZIP code format: ${zipCode}`);
       return null;
     }
     
@@ -108,7 +124,7 @@ export class ZipValidationService {
       
       return null;
     } catch (error) {
-      console.error(`Error querying database for ZIP code ${zipCode}:`, error);
+      errorLog(`Error querying database for ZIP code ${zipCode}:`, error);
       return null;
     }
   }
@@ -151,7 +167,7 @@ export class ZipValidationService {
       const country = this.getCountryFromZipCode(cleanZip);
       
       if (!country) {
-        console.log(`Invalid ZIP code format: ${zipCode}`);
+        log(`Invalid ZIP code format: ${zipCode}`);
         return { isValid: false };
       }
       
@@ -288,7 +304,7 @@ export class ZipValidationService {
         originalCity: city
       };
     } catch (error) {
-      console.error('Error validating ZIP code and city:', error);
+      errorLog('Error validating ZIP code and city:', error);
       return { isValid: false };
     }
   }

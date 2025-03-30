@@ -4,11 +4,21 @@ import { logger } from '../utils/logger';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../app';
-import { LetterStatus } from '@prisma/client';
+import { Letter, LetterStatus } from '@prisma/client';
 import { SpoolSubmissionData } from '../types/briefbutler.types';
 import { PdfProcessingService } from '../services/pdf-processing.service';
 import { BriefButlerService } from '../services/brief-butler.service';
 import { AddressFormType } from '../services/pdf-processing.service';
+
+// Extended Letter interface with additional fields needed by the BriefButler service
+interface LetterWithName extends Letter {
+  recipientFirstName: string | null;
+  recipientLastName: string | null;
+  recipientAcademicTitle: string | null;
+  recipientEmail: string | null;
+  recipientPhone: string | null;
+  reference: string | null;
+}
 
 // Check for test mode environment variable
 if (process.env.BRIEFBUTLER_TEST_MODE === 'true') {
@@ -41,7 +51,7 @@ export const briefButlerController = {
       // Get letter details from database
       const letter = await prisma.letter.findUnique({
         where: { id: letterId },
-      });
+      }) as LetterWithName;
       
       if (!letter) {
         return res.status(404).json({
@@ -90,6 +100,8 @@ export const briefButlerController = {
       const result = await briefButlerService.submitLetter({
         pdfPath: absolutePdfPath,
         recipientName: letter.recipientName,
+        recipientFirstName: (letter as LetterWithName).recipientFirstName || undefined,
+        recipientLastName: (letter as LetterWithName).recipientLastName || undefined,
         recipientAddress: letter.recipientAddress,
         recipientCity: letter.recipientCity,
         recipientZip: letter.recipientZip,
@@ -131,7 +143,7 @@ export const briefButlerController = {
           sentAt: new Date(),
           profileId,
         },
-      });
+      }) as LetterWithName;
       
       // Add status history entry
       await prisma.statusHistory.create({
@@ -180,7 +192,7 @@ export const briefButlerController = {
       // Check if letter exists in our database
       const letter = await prisma.letter.findUnique({
         where: { trackingId },
-      });
+      }) as LetterWithName;
       
       if (!letter) {
         return res.status(404).json({
@@ -281,7 +293,7 @@ export const briefButlerController = {
       // Check if letter exists in our database
       const letter = await prisma.letter.findUnique({
         where: { trackingId },
-      });
+      }) as LetterWithName;
       
       if (!letter) {
         return res.status(404).json({
@@ -427,7 +439,7 @@ export const briefButlerController = {
       // Get the letter from the database
       const letter = await prisma.letter.findUnique({
         where: { id: letterId }
-      });
+      }) as LetterWithName;
       
       if (!letter) {
         return res.status(404).json({
@@ -456,32 +468,32 @@ export const briefButlerController = {
             'formB' as AddressFormType // Default form type, can be made configurable
           );
           
-          // Update the letter with the extracted address
-          await prisma.letter.update({
+          // Update the letter with extracted data
+          const updatedLetter = await prisma.letter.update({
             where: { id: letterId },
             data: {
               recipientName: extractionResult.name,
               recipientAddress: extractionResult.street,
               recipientCity: extractionResult.city,
-              recipientZip: extractionResult.postalCode, // Assuming 'postalCode' is the correct property
-              recipientCountry: extractionResult.country || 'Germany' // Default to Germany if not specified
+              recipientZip: extractionResult.postalCode,
+              recipientCountry: extractionResult.country || 'Germany',
+              recipientState: extractionResult.state || undefined,
+              recipientFirstName: extractionResult.firstName || null,
+              recipientLastName: extractionResult.lastName || null,
+              recipientAcademicTitle: extractionResult.academicTitle || null
             }
-          });
+          }) as LetterWithName;
           
-          // Refresh the letter object with updated data
-          const updatedLetter = await prisma.letter.findUnique({
-            where: { id: letterId }
-          });
-          
-          if (!updatedLetter) {
-            throw new Error('Failed to retrieve updated letter');
-          }
-          
-          letter.recipientName = updatedLetter.recipientName;
-          letter.recipientAddress = updatedLetter.recipientAddress;
-          letter.recipientCity = updatedLetter.recipientCity;
-          letter.recipientZip = updatedLetter.recipientZip;
-          letter.recipientCountry = updatedLetter.recipientCountry;
+          // Also update the in-memory letter object to use for the rest of this request
+          letter.recipientName = extractionResult.name || letter.recipientName;
+          letter.recipientAddress = extractionResult.street || letter.recipientAddress;
+          letter.recipientCity = extractionResult.city || letter.recipientCity;
+          letter.recipientZip = extractionResult.postalCode || letter.recipientZip;
+          letter.recipientCountry = extractionResult.country || letter.recipientCountry || 'Germany';
+          letter.recipientState = extractionResult.state || letter.recipientState;
+          (letter as LetterWithName).recipientFirstName = extractionResult.firstName || null;
+          (letter as LetterWithName).recipientLastName = extractionResult.lastName || null;
+          (letter as LetterWithName).recipientAcademicTitle = extractionResult.academicTitle || null;
         } catch (error: any) {
           logger.error('Error extracting address from PDF:', error.message);
           return res.status(400).json({
@@ -504,6 +516,8 @@ export const briefButlerController = {
       const spoolData: SpoolSubmissionData = {
         pdfPath: path.join(process.cwd(), letter.pdfPath),
         recipientName: letter.recipientName,
+        recipientFirstName: (letter as LetterWithName).recipientFirstName || undefined,
+        recipientLastName: (letter as LetterWithName).recipientLastName || undefined,
         recipientAddress: letter.recipientAddress,
         recipientCity: letter.recipientCity,
         recipientZip: letter.recipientZip,
@@ -608,7 +622,7 @@ export const briefButlerController = {
       // Find the letter with this spool ID
       const letter = await prisma.letter.findFirst({
         where: { deliveryId: spoolId }
-      });
+      }) as LetterWithName;
       
       if (letter) {
         // Check if the status has changed
@@ -682,6 +696,8 @@ export const briefButlerController = {
       const spoolData: SpoolSubmissionData = {
         pdfPath: mockPdfPath,
         recipientName: 'Test Recipient',
+        recipientFirstName: 'Test',
+        recipientLastName: 'Recipient',
         recipientAddress: 'Test Street 123',
         recipientCity: 'Vienna',
         recipientZip: '1030',
@@ -718,4 +734,434 @@ export const briefButlerController = {
       });
     }
   },
-}; 
+
+  /**
+   * Submit a document for dual delivery
+   * @route POST /api/brief-butler/dual-delivery
+   */
+  async submitDualDelivery(req: Request, res: Response) {
+    try {
+      const user = req.user as any;
+      const { letterId, senderProfileId } = req.body;
+      
+      if (!user || !user.id) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Unauthorized: User not authenticated'
+        });
+      }
+      
+      if (!letterId) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Letter ID is required'
+        });
+      }
+      
+      // Get letter from database
+      const letter = await prisma.letter.findUnique({
+        where: { id: letterId }
+      });
+      
+      if (!letter) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Letter not found'
+        });
+      }
+      
+      // Check if PDF exists
+      if (!letter.pdfPath) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Letter does not have a PDF file'
+        });
+      }
+      
+      // Create absolute path to PDF file
+      const absolutePdfPath = path.resolve(process.cwd(), letter.pdfPath);
+      
+      if (!fs.existsSync(absolutePdfPath)) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Letter PDF file not found on server'
+        });
+      }
+      
+      // Check for required recipient information
+      if (!letter.recipientName || !letter.recipientAddress || !letter.recipientCity || 
+          !letter.recipientZip || !letter.recipientCountry) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Letter is missing required recipient information'
+        });
+      }
+      
+      // Get sender profile info
+      let senderProfile;
+      
+      if (senderProfileId) {
+        // If sender profile ID is provided, use that specific profile
+        senderProfile = await prisma.senderProfile.findFirst({
+          where: {
+            id: senderProfileId,
+            userId: user.id
+          }
+        });
+        
+        if (!senderProfile) {
+          return res.status(404).json({
+            status: 'error',
+            message: 'Sender profile not found or does not belong to you'
+          });
+        }
+      } else {
+        // Otherwise, use the default sender profile
+        senderProfile = await prisma.senderProfile.findFirst({
+          where: {
+            userId: user.id,
+            isDefault: true
+          }
+        });
+        
+        // If no default profile, get any profile
+        if (!senderProfile) {
+          senderProfile = await prisma.senderProfile.findFirst({
+            where: {
+              userId: user.id
+            }
+          });
+        }
+        
+        // If still no profile, return error
+        if (!senderProfile) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'No sender profile found. Please create a sender profile first.'
+          });
+        }
+      }
+      
+      logger.info(`Using sender profile: ${senderProfile.name}, ${senderProfile.address}, ${senderProfile.city}`);
+      
+      // Convert recipient country if needed
+      let recipientCountry = letter.recipientCountry;
+      if (recipientCountry === 'Austria') recipientCountry = 'AT';
+      if (recipientCountry === 'Germany') recipientCountry = 'DE';
+      
+      // Prepare the submission data
+      const submissionData: SpoolSubmissionData = {
+        pdfPath: absolutePdfPath,
+        recipientName: letter.recipientName || 'Unknown Recipient',
+        recipientFirstName: (letter as LetterWithName).recipientFirstName || undefined,
+        recipientLastName: (letter as LetterWithName).recipientLastName || undefined,
+        recipientAcademicTitle: (letter as LetterWithName).recipientAcademicTitle || undefined,
+        recipientAddress: letter.recipientAddress || 'Unknown Address',
+        recipientCity: letter.recipientCity || 'Unknown City',
+        recipientZip: letter.recipientZip || '00000',
+        recipientCountry: recipientCountry || 'AT', // Use converted country code
+        recipientState: letter.recipientState || undefined,
+        recipientEmail: (letter as LetterWithName).recipientEmail || undefined,
+        recipientPhone: (letter as LetterWithName).recipientPhone || undefined,
+        senderName: senderProfile.name,
+        senderAddress: senderProfile.address,
+        senderCity: senderProfile.city,
+        senderZip: senderProfile.zip,
+        senderCountry: senderProfile.country,
+        senderState: senderProfile.state || undefined,
+        reference: letter.reference || `letter-${letterId}`,
+        isColorPrint: letter.isColorPrint || false,
+        isDuplexPrint: letter.isDuplexPrint !== false, // Default to true
+        deliveryProfile: senderProfile.deliveryProfile || 'briefbutler-test'
+      };
+      
+      // Submit the document
+      const briefButlerService = new BriefButlerService();
+      const result = await briefButlerService.submitDualDelivery(submissionData);
+      
+      if (!result.success) {
+        // Record the failure
+        await prisma.statusHistory.create({
+          data: {
+            letterId: letter.id,
+            status: 'FAILED',
+            message: `Failed to submit to BriefButler: ${result.message}`,
+            timestamp: new Date()
+          }
+        });
+        
+        return res.status(500).json({
+          status: 'error',
+          message: result.message,
+          details: result.error
+        });
+      }
+      
+      // Extract tracking ID
+      const trackingId = result.data?.trackingId || null;
+      
+      // Update letter in database
+      await prisma.letter.update({
+        where: { id: letterId },
+        data: {
+          trackingId,
+          deliveryId: submissionData.reference,
+          status: 'PROCESSING',
+          sentAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+      
+      // Add status history entry
+      await prisma.statusHistory.create({
+        data: {
+          letterId: letter.id,
+          status: 'PROCESSING',
+          message: 'Document submitted to BriefButler dual delivery',
+          timestamp: new Date()
+        }
+      });
+      
+      return res.status(200).json({
+        status: 'success',
+        message: 'Document submitted successfully',
+        data: {
+          letterId,
+          trackingId,
+          deliveryId: submissionData.reference,
+          senderProfile: {
+            id: senderProfile.id,
+            name: senderProfile.name
+          }
+        }
+      });
+    } catch (error: any) {
+      logger.error(`Error in submitDualDelivery controller: ${error.message}`);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to submit document',
+        details: error.message
+      });
+    }
+  },
+  
+  /**
+   * Get document status by tracking ID
+   * @route GET /api/brief-butler/status/:trackingId
+   */
+  async getStatus(req: Request, res: Response) {
+    try {
+      const { trackingId } = req.params;
+      
+      if (!trackingId) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Tracking ID is required'
+        });
+      }
+      
+      // Get status from BriefButler
+      const briefButlerService = new BriefButlerService();
+      const result = await briefButlerService.getTrackingStatus(trackingId);
+      
+      if (!result.success) {
+        return res.status(500).json({
+          status: 'error',
+          message: result.message,
+          details: result.error
+        });
+      }
+      
+      // Find letter with this tracking ID
+      const letter = await prisma.letter.findFirst({
+        where: { trackingId }
+      }) as LetterWithName;
+      
+      if (letter) {
+        // Map BriefButler status to our status
+        let newStatus = letter.status;
+        const bbStateName = result.data?.state?.stateName || '';
+        
+        if (bbStateName.includes('delivered')) {
+          newStatus = 'DELIVERED';
+        } else if (bbStateName.includes('printed')) {
+          newStatus = 'SENT';
+        } else if (bbStateName.includes('failed') || bbStateName.includes('error')) {
+          newStatus = 'FAILED';
+        } else if (bbStateName.includes('processing') || bbStateName.includes('fetched')) {
+          newStatus = 'PROCESSING';
+        }
+        
+        // Update letter status if changed
+        if (letter.status !== newStatus) {
+          await prisma.letter.update({
+            where: { id: letter.id },
+            data: {
+              status: newStatus,
+              updatedAt: new Date()
+            }
+          });
+          
+          // Add status history entry
+          await prisma.statusHistory.create({
+            data: {
+              letterId: letter.id,
+              status: newStatus,
+              message: `Status updated from BriefButler: ${bbStateName}`,
+              timestamp: new Date()
+            }
+          });
+        }
+      }
+      
+      return res.status(200).json({
+        status: 'success',
+        message: 'Status retrieved successfully',
+        data: result.data
+      });
+    } catch (error: any) {
+      logger.error(`Error in getStatus controller: ${error.message}`);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to get status',
+        details: error.message
+      });
+    }
+  },
+  
+  /**
+   * Get document status by delivery ID and profile ID
+   * @route GET /api/brief-butler/status-by-delivery/:deliveryId/:profileId
+   */
+  async getStatusByDelivery(req: Request, res: Response) {
+    try {
+      const { deliveryId, profileId } = req.params;
+      
+      if (!deliveryId || !profileId) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Delivery ID and profile ID are required'
+        });
+      }
+      
+      // Get status from BriefButler
+      const briefButlerService = new BriefButlerService();
+      const result = await briefButlerService.getDeliveryIdStatus(deliveryId, profileId);
+      
+      if (!result.success) {
+        return res.status(500).json({
+          status: 'error',
+          message: result.message,
+          details: result.error
+        });
+      }
+      
+      return res.status(200).json({
+        status: 'success',
+        message: 'Status retrieved successfully',
+        data: result.data
+      });
+    } catch (error: any) {
+      logger.error(`Error in getStatusByDelivery controller: ${error.message}`);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to get status',
+        details: error.message
+      });
+    }
+  },
+  
+  /**
+   * Get document content
+   * @route GET /api/brief-butler/document/:trackingId/:documentId/:documentVersion
+   */
+  async getDocument(req: Request, res: Response) {
+    try {
+      const { trackingId, documentId, documentVersion } = req.params;
+      
+      if (!trackingId || !documentId || !documentVersion) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Tracking ID, document ID, and document version are required'
+        });
+      }
+      
+      // Get document from BriefButler
+      const briefButlerService = new BriefButlerService();
+      const result = await briefButlerService.getDocumentContent(
+        trackingId, 
+        documentId, 
+        parseInt(documentVersion)
+      );
+      
+      if (!result.success) {
+        return res.status(500).json({
+          status: 'error',
+          message: result.message,
+          details: result.error
+        });
+      }
+      
+      // Set headers for document download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="document-${documentId}.pdf"`);
+      
+      // Send the binary data
+      return res.send(result.data);
+    } catch (error: any) {
+      logger.error(`Error in getDocument controller: ${error.message}`);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to get document',
+        details: error.message
+      });
+    }
+  },
+  
+  /**
+   * Get receipt document content
+   * @route GET /api/brief-butler/receipt/:trackingId/:documentId/:documentVersion
+   */
+  async getReceipt(req: Request, res: Response) {
+    try {
+      const { trackingId, documentId, documentVersion } = req.params;
+      
+      if (!trackingId || !documentId || !documentVersion) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Tracking ID, document ID, and document version are required'
+        });
+      }
+      
+      // Get receipt from BriefButler
+      const briefButlerService = new BriefButlerService();
+      const result = await briefButlerService.getReceiptDocument(
+        trackingId, 
+        documentId, 
+        parseInt(documentVersion)
+      );
+      
+      if (!result.success) {
+        return res.status(500).json({
+          status: 'error',
+          message: result.message,
+          details: result.error
+        });
+      }
+      
+      // Set headers for document download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="receipt-${documentId}.pdf"`);
+      
+      // Send the binary data
+      return res.send(result.data);
+    } catch (error: any) {
+      logger.error(`Error in getReceipt controller: ${error.message}`);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to get receipt',
+        details: error.message
+      });
+    }
+  }
+};

@@ -1,8 +1,21 @@
 import winston from 'winston';
 import dotenv from 'dotenv';
+import * as fs from 'fs';
+import path from 'path';
 
 // Load environment variables
 dotenv.config();
+
+// Create logs directory if it doesn't exist
+const logsDir = path.join(process.cwd(), 'logs');
+try {
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+} catch (error) {
+  console.error('Failed to create logs directory:', error);
+  // Continue execution even if directory creation fails
+}
 
 // Define log levels
 const levels = {
@@ -41,15 +54,31 @@ const format = winston.format.combine(
   ),
 );
 
-// Define transport for logs
-const transports = [
-  new winston.transports.Console(),
-  new winston.transports.File({
-    filename: 'logs/error.log',
-    level: 'error',
-  }),
-  new winston.transports.File({ filename: 'logs/all.log' }),
-];
+// Define transports for logs
+const transports: winston.transport[] = [];
+
+// In test environment, don't use any transports
+if (process.env.NODE_ENV !== 'test') {
+  // Add console transport only in non-test environments
+  transports.push(new winston.transports.Console());
+  
+  // Only add file transports if directory creation was successful
+  try {
+    if (fs.existsSync(logsDir)) {
+      transports.push(
+        new winston.transports.File({
+          filename: path.join(logsDir, 'error.log'),
+          level: 'error',
+        }),
+        new winston.transports.File({ 
+          filename: path.join(logsDir, 'all.log') 
+        })
+      );
+    }
+  } catch (error) {
+    console.error('Failed to set up file transports:', error);
+  }
+}
 
 // Create the logger instance
 export const logger = winston.createLogger({
@@ -57,6 +86,7 @@ export const logger = winston.createLogger({
   levels,
   format,
   transports,
+  silent: process.env.NODE_ENV === 'test', // Silence during tests
 });
 
 // Export a default logger instance

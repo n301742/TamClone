@@ -68,6 +68,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     Select: typeof import('primevue/select')['default']
     SelectButton: typeof import('primevue/selectbutton')['default']
+    SenderProfileDropdown: typeof import('./src/components/SenderProfileDropdown.vue')['default']
     Slider: typeof import('primevue/slider')['default']
     SplitButton: typeof import('primevue/splitbutton')['default']
     Step: typeof import('primevue/step')['default']

@@ -2,6 +2,22 @@ import axios from 'axios';
 import { prisma } from '../app';
 import { zipValidationService } from './zip-validation.service';
 
+// Simple logging function to avoid logging during tests
+function log(message: string, ...args: any[]) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  console.log(message, ...args);
+}
+
+// Simple error logging function to avoid logging during tests
+function errorLog(message: string, ...args: any[]) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  console.error(message, ...args);
+}
+
 // Define interfaces for the OpenPLZ API response
 interface OpenPLZPlace {
   plz?: string;
@@ -59,14 +75,14 @@ export class ExternalZipValidationService {
       // First, check if we already have this ZIP code in our internal database
       const countryCode = zipValidationService.getCountryFromZipCode(zipCode);
       if (!countryCode) {
-        console.log(`[External ZIP Validation] Unknown ZIP code format: ${zipCode}`);
+        log(`[External ZIP Validation] Unknown ZIP code format: ${zipCode}`);
         return { isValid: false, confidenceAdjustment: -0.2 };
       }
       
       // Check our internal database first
       const internalResults = await this.checkInternalDatabase(zipCode);
       if (internalResults && internalResults.length > 0) {
-        console.log(`[External ZIP Validation] ZIP code ${zipCode} found in internal database with ${internalResults.length} cities`);
+        log(`[External ZIP Validation] ZIP code ${zipCode} found in internal database with ${internalResults.length} cities`);
         
         // Get all city names
         const cities = internalResults.map(result => result.city);
@@ -86,7 +102,7 @@ export class ExternalZipValidationService {
       }
       
       // If not found in internal database, query the external API
-      console.log(`[External ZIP Validation] ZIP code ${zipCode} not found in internal database, querying OpenPLZ API`);
+      log(`[External ZIP Validation] ZIP code ${zipCode} not found in internal database, querying OpenPLZ API`);
       
       try {
         // Determine which API endpoint to use based on the country code
@@ -99,14 +115,14 @@ export class ExternalZipValidationService {
           url = `${this.API_BASE_URL}/de/Localities?postalCode=${zipCode}`;
         }
         
-        console.log(`[External ZIP Validation] Querying URL: ${url}`);
+        log(`[External ZIP Validation] Querying URL: ${url}`);
         const response = await axios.get<OpenPLZPlace[]>(url);
         
         // If we get a successful response with data, the ZIP code is valid
         if (response.data && response.data.length > 0) {
           // Process all places returned by the API
           const places = response.data;
-          console.log(`[External ZIP Validation] Found ${places.length} localities for ZIP code ${zipCode}`);
+          log(`[External ZIP Validation] Found ${places.length} localities for ZIP code ${zipCode}`);
           
           // Extract city names and state from all places
           const cities: string[] = [];
@@ -145,21 +161,21 @@ export class ExternalZipValidationService {
         }
         
         // If we get here, the ZIP code is not valid
-        console.log(`[External ZIP Validation] No results found for ZIP code ${zipCode}`);
+        log(`[External ZIP Validation] No results found for ZIP code ${zipCode}`);
         return { isValid: false, confidenceAdjustment: -0.2 };
       } catch (error: any) {
         // If we get a 404, it means the ZIP code doesn't exist in their database
         if (error.response && error.response.status === 404) {
-          console.log(`[External ZIP Validation] ZIP code ${zipCode} not found in OpenPLZ API (404)`);
+          log(`[External ZIP Validation] ZIP code ${zipCode} not found in OpenPLZ API (404)`);
           return { isValid: false, confidenceAdjustment: -0.2 };
         }
         
         // For other errors, log and return a neutral result
-        console.error(`[External ZIP Validation] API error for ${zipCode}:`, error.message);
+        errorLog(`[External ZIP Validation] API error for ${zipCode}:`, error.message);
         return { isValid: false, confidenceAdjustment: -0.1 };
       }
     } catch (error) {
-      console.error(`[External ZIP Validation] Error validating ZIP code ${zipCode}:`, error);
+      errorLog(`[External ZIP Validation] Error validating ZIP code ${zipCode}:`, error);
       
       // If the API call fails, we'll assume the ZIP code might be valid
       // but we couldn't verify it, so we return a neutral result
@@ -195,7 +211,7 @@ export class ExternalZipValidationService {
         
         if (exactMatchIndex !== -1) {
           // Found an exact match in our internal database
-          console.log(`[External ZIP Validation] ZIP code ${zipCode} with city ${city} is valid (found in internal database)`);
+          log(`[External ZIP Validation] ZIP code ${zipCode} with city ${city} is valid (found in internal database)`);
           internalMatch = true;
           return {
             isValid: true,
@@ -210,7 +226,7 @@ export class ExternalZipValidationService {
       
       // Always query the external API, even if we have the ZIP code in our database
       // This allows us to discover new valid city combinations
-      console.log(`[External ZIP Validation] Checking external API for ZIP code ${zipCode} with city ${city}`);
+      log(`[External ZIP Validation] Checking external API for ZIP code ${zipCode} with city ${city}`);
       
       // Determine country code from ZIP code format
       const countryCode = zipCode.length === 4 ? 'AT' : 'DE';
@@ -226,14 +242,14 @@ export class ExternalZipValidationService {
       }
       
       try {
-        console.log(`[External ZIP Validation] Querying URL: ${url}`);
+        log(`[External ZIP Validation] Querying URL: ${url}`);
         const response = await axios.get<OpenPLZPlace[]>(url);
         
         // If we get a successful response with data, the ZIP code is valid
         if (response.data && response.data.length > 0) {
           // Process all places returned by the API
           const places = response.data;
-          console.log(`[External ZIP Validation] Found ${places.length} localities for ZIP code ${zipCode}`);
+          log(`[External ZIP Validation] Found ${places.length} localities for ZIP code ${zipCode}`);
           
           // Extract city names and state from all places
           const apiCities: string[] = [];
@@ -253,7 +269,7 @@ export class ExternalZipValidationService {
             }
           }
           
-          console.log(`[External ZIP Validation] API returned cities for ${zipCode}: ${apiCities.join(', ')}`);
+          log(`[External ZIP Validation] API returned cities for ${zipCode}: ${apiCities.join(', ')}`);
           
           // Combine with cities from internal database to get a complete list
           const allPossibleCities = [...new Set([...internalCities, ...apiCities])];
@@ -269,7 +285,7 @@ export class ExternalZipValidationService {
             
             // If this is a new city for this ZIP code, add it to our database
             if (!internalCities.includes(matchedCity)) {
-              console.log(`[External ZIP Validation] Adding new city ${matchedCity} for ZIP code ${zipCode} to database`);
+              log(`[External ZIP Validation] Adding new city ${matchedCity} for ZIP code ${zipCode} to database`);
               await this.cacheZipCodeResult(
                 zipCode, 
                 matchedCity, 
@@ -329,7 +345,7 @@ export class ExternalZipValidationService {
           }
           
           // If we get here, the ZIP code is not valid according to the API
-          console.log(`[External ZIP Validation] No results found for ZIP code ${zipCode}`);
+          log(`[External ZIP Validation] No results found for ZIP code ${zipCode}`);
           return { 
             isValid: false, 
             country: countryCode === 'DE' ? 'Germany' : 'Austria',
@@ -340,7 +356,7 @@ export class ExternalZipValidationService {
       } catch (error: any) {
         // If we get a 404, it means the ZIP code doesn't exist in their database
         if (error.response && error.response.status === 404) {
-          console.log(`[External ZIP Validation] ZIP code ${zipCode} not found in OpenPLZ API (404)`);
+          log(`[External ZIP Validation] ZIP code ${zipCode} not found in OpenPLZ API (404)`);
           
           // If we have internal results, use those
           if (internalResults && internalResults.length > 0) {
@@ -363,7 +379,7 @@ export class ExternalZipValidationService {
         }
         
         // For other errors, log and return a neutral result
-        console.error(`[External ZIP Validation] API error for ${zipCode}:`, error.message);
+        errorLog(`[External ZIP Validation] API error for ${zipCode}:`, error.message);
         
         // If we have internal results, use those
         if (internalResults && internalResults.length > 0) {
@@ -385,7 +401,7 @@ export class ExternalZipValidationService {
         };
       }
     } catch (error) {
-      console.error(`[External ZIP Validation] Error validating ZIP code ${zipCode} and city ${city}:`, error);
+      errorLog(`[External ZIP Validation] Error validating ZIP code ${zipCode} and city ${city}:`, error);
       return { 
         isValid: false, 
         country: zipCode.length === 4 ? 'Austria' : 'Germany',
@@ -413,7 +429,7 @@ export class ExternalZipValidationService {
       });
       
       if (entries && entries.length > 0) {
-        console.log(`[External ZIP Validation] Found ${entries.length} entries for ZIP code ${zipCode} in database: ${entries.map((e: any) => e.city).join(', ')}`);
+        log(`[External ZIP Validation] Found ${entries.length} entries for ZIP code ${zipCode} in database: ${entries.map((e: any) => e.city).join(', ')}`);
         return entries.map((entry: any) => ({
           zipCode: entry.zipCode,
           city: entry.city,
@@ -424,7 +440,7 @@ export class ExternalZipValidationService {
       
       return null;
     } catch (error) {
-      console.error(`[External ZIP Validation] Error checking internal database for ZIP code ${zipCode}:`, error);
+      errorLog(`[External ZIP Validation] Error checking internal database for ZIP code ${zipCode}:`, error);
       return null;
     }
   }
@@ -469,9 +485,9 @@ export class ExternalZipValidationService {
         }
       });
       
-      console.log(`[External ZIP Validation] Cached ZIP code ${zipCode} with city ${city} in database`);
+      log(`[External ZIP Validation] Cached ZIP code ${zipCode} with city ${city} in database`);
     } catch (error) {
-      console.error(`[External ZIP Validation] Error caching ZIP code ${zipCode} with city ${city}:`, error);
+      errorLog(`[External ZIP Validation] Error caching ZIP code ${zipCode} with city ${city}:`, error);
     }
   }
   

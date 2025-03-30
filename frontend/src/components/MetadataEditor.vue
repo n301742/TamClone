@@ -13,24 +13,23 @@
         <h4 class="text-lg font-semibold mb-2">Document Information</h4>
         <div class="flex flex-column md:flex-row gap-3">
           <div class="field flex-1">
-            <label for="documentId" class="block text-sm font-medium mb-1">Document ID</label>
+            <label for="documentId" class="block text-sm font-medium mb-1">Internal Document ID</label>
             <div class="p-input-icon-right w-full">
-              <i class="pi pi-info-circle" v-tooltip.top="'This is the unique identifier for your document in the BriefButler system'"></i>
-              <!-- Show readonly input if document ID is provided by prop -->
+              <i class="pi pi-info-circle" v-tooltip.top="'This is the internal identifier for your document in our system'"></i>
+              <!-- Show readonly input if document ID is provided by system -->
               <InputText v-if="props.documentId" id="documentId" :value="props.documentId" class="w-full" readonly />
-              <!-- Show editable input if document ID is not provided by prop -->
-              <InputText v-else id="customDocumentId" v-model="customDocumentId" class="w-full" placeholder="Enter document ID" 
-                :class="{'p-invalid': v$.customDocumentId?.$invalid && v$.customDocumentId?.$dirty}" />
+              <!-- If no document ID is available, show a message that one will be generated -->
+              <div v-else class="text-gray-600 p-2 bg-gray-100 border-round">
+                A system-generated ID will be assigned when the document is processed
+              </div>
             </div>
-            <small v-if="props.documentId" class="text-sm text-blue-700">System-generated document ID (required for BriefButler)</small>
-            <small v-else-if="v$.customDocumentId?.$invalid && v$.customDocumentId?.$dirty" class="p-error">Document ID is required</small>
-            <small v-else class="text-sm text-blue-700">Please enter your document ID (required for BriefButler)</small>
+            <small class="text-sm text-blue-700">System-generated identifier (not related to BriefButler)</small>
           </div>
           
           <div class="field flex-1">
             <label for="reference" class="block text-sm font-medium mb-1">Reference Number (Optional)</label>
             <InputText id="reference" v-model="metadata.reference" class="w-full" placeholder="Your reference number" />
-            <small class="text-sm text-gray-500">Add a custom reference number for your records</small>
+            <small class="text-sm text-gray-500">Add a custom reference number for tracking this document in BriefButler</small>
           </div>
         </div>
       </div>
@@ -80,6 +79,24 @@
       <!-- BriefButler specific fields -->
       <div class="briefbutler-section mb-4">
         <h4 class="text-lg font-semibold mb-2">Document Settings</h4>
+        
+        <!-- Sender Profile Selection -->
+        <div class="field mb-4">
+          <label class="block text-sm font-medium mb-1">Sender Information</label>
+          <SenderProfileDropdown 
+            v-model="metadata.senderProfileId" 
+            @profile-selected="onProfileSelected"
+            :required="true"
+            label="Select sender profile"
+          />
+          <small v-if="v$.senderProfileId.$invalid && v$.senderProfileId.$dirty" class="p-error">
+            Please select or create a sender profile
+          </small>
+          <small v-else class="text-sm text-gray-500">
+            This information will be used as the sender details for your document
+          </small>
+        </div>
+        
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div class="field">
             <label for="formType" class="block text-sm font-medium mb-1">Form Type</label>
@@ -128,10 +145,13 @@ import { useToast } from 'primevue/usetoast';
 import { useVuelidate } from '@vuelidate/core';
 import { required, email } from '@vuelidate/validators';
 import { pdfService } from '../services/api';
-import InputText from "primevue/inputtext";
-import Button from "primevue/button";
-import Checkbox from "primevue/checkbox";
-import Select from "primevue/select";
+import InputText from 'primevue/inputtext';
+import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
+import Select from 'primevue/select';
+import ProgressSpinner from 'primevue/progressspinner';
+import SenderProfileDropdown from './SenderProfileDropdown.vue';
+import type { SenderProfile } from '../types/api.types';
 
 const toast = useToast();
 
@@ -175,6 +195,7 @@ interface DocumentMetadata {
   isRegistered?: boolean;
   reference?: string;
   documentId?: string; // Optional document ID property
+  senderProfileId?: string; // ID of the selected sender profile
 }
 
 // Default metadata values
@@ -190,13 +211,14 @@ const defaultMetadata: DocumentMetadata = {
   email: '',
   isExpress: false,
   isRegistered: false,
-  reference: ''
+  reference: '',
+  senderProfileId: ''
 };
 
 // State
 const metadata = reactive<DocumentMetadata>({...defaultMetadata});
 const submitting = ref(false);
-const customDocumentId = ref('');
+const selectedSenderProfile = ref<SenderProfile | null>(null);
 
 // Build validation rules to match the metadata structure
 const buildValidationRules = () => {
@@ -206,22 +228,15 @@ const buildValidationRules = () => {
     city: { required },
     postalCode: { required },
     country: { required },
-    email: { email } // Optional but must be valid if provided
+    email: { email }, // Optional but must be valid if provided
+    senderProfileId: { required } // Make sender profile required
   };
-  
-  // Add validation for customDocumentId when there's no document ID from props
-  if (!props.documentId) {
-    return {
-      ...rules,
-      customDocumentId: { required }
-    };
-  }
   
   return rules;
 };
 
 // Create validation instance
-const v$ = useVuelidate(buildValidationRules(), { ...metadata, customDocumentId });
+const v$ = useVuelidate(buildValidationRules(), metadata);
 
 // Watch for initialMetadata changes and update form
 watch(() => props.initialMetadata, (newValue) => {
@@ -233,6 +248,12 @@ watch(() => props.initialMetadata, (newValue) => {
     });
   }
 }, { immediate: true });
+
+// Handle profile selection
+const onProfileSelected = (profile: SenderProfile) => {
+  selectedSenderProfile.value = profile;
+  metadata.senderProfileId = profile.id;
+};
 
 // Handle form submission
 const handleSubmit = async () => {
@@ -258,87 +279,66 @@ const handleSubmit = async () => {
     });
     return;
   }
-
-  console.log('Validation passed successfully');
   
-  // Get document ID (either from props or custom input)
-  const documentId = props.documentId || customDocumentId.value;
-  
-  if (!documentId) {
-    console.error('Document ID is missing');
-    toast.add({
-      severity: 'error',
-      summary: 'Missing Document ID',
-      detail: 'Document ID is required for BriefButler processing.',
-      life: 3000
-    });
-    return;
-  }
-
-  console.log('Using document ID:', documentId);
-  submitting.value = true;
-
   try {
-    console.log('Sending to BriefButler:', { 
-      documentId, 
-      metadata: { 
-        ...metadata,
-        senderAddress: 'Default Address',
-        senderCity: 'Default City',
-        senderZip: '1000',
-        senderCountry: 'Austria' 
-      }
-    });
+    submitting.value = true;
     
-    // Send metadata to BriefButler API with all required fields
-    const response = await pdfService.sendToBriefButler(
-      documentId, 
-      {
-        ...metadata,
-        senderAddress: 'Default Address',
-        senderCity: 'Default City',
-        senderZip: '1000',
-        senderCountry: 'Austria'
-      }
-    );
+    const documentId = props.documentId;
     
-    console.log('BriefButler response received:', response);
+    if (!documentId) {
+      console.error('No document ID provided');
+      throw new Error('Document ID is required for submission');
+    }
     
+    // Prepare data for API call
+    const letterData = {
+      letterId: documentId,
+      recipientName: metadata.name,
+      recipientAddress: metadata.street,
+      recipientCity: metadata.city,
+      recipientZip: metadata.postalCode,
+      recipientCountry: metadata.country,
+      recipientEmail: metadata.email || undefined,
+      isColorPrint: metadata.isColorPrint,
+      isDuplexPrint: metadata.isDuplexPrint,
+      isExpress: metadata.isExpress,
+      isRegistered: metadata.isRegistered,
+      reference: metadata.reference || undefined,
+      // Include the sender profile ID
+      senderProfileId: metadata.senderProfileId
+    };
+    
+    // Submit the document
+    console.log('Submitting document with data:', letterData);
+    const response = await pdfService.submitToBriefButler(letterData);
+    
+    // On success
     toast.add({
       severity: 'success',
-      summary: 'Document Sent',
-      detail: 'Document has been successfully sent to BriefButler.',
+      summary: 'Success',
+      detail: 'Document submitted to BriefButler successfully',
       life: 3000
     });
     
-    // Emit success event with metadata and response
+    // Emit success event with metadata, document ID, and response
     emit('submit', { 
       metadata, 
       documentId, 
       response 
     });
   } catch (error: any) {
-    console.error('Error sending to BriefButler:', error);
-    
-    // Try to extract and show more meaningful error messages
-    let errorMessage = 'Failed to send document to BriefButler.';
-    
-    if (error.response?.data?.message) {
-      errorMessage = error.response.data.message;
-      console.error('Server error message:', errorMessage);
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
-    toast.add({
-      severity: 'error',
-      summary: 'Submission Error',
-      detail: errorMessage,
-      life: 5000
-    });
+    console.error('Error submitting document:', error);
     
     // Emit error event
     emit('error', error);
+    
+    // Show error message
+    toast.add({
+      severity: 'error',
+      summary: 'Submission Error',
+      detail: error.response?.data?.message || error.message || 'Failed to submit document',
+      life: 5000
+    });
   } finally {
     submitting.value = false;
   }

@@ -2,6 +2,14 @@ import axios from 'axios';
 import { prisma } from '../app';
 import { PrismaClient } from '@prisma/client';
 
+// Simple logging function to avoid logging during tests
+function log(message: string, ...args: any[]) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  console.log(message, ...args);
+}
+
 // Define interfaces for the OpenPLZ API response
 interface OpenPLZStreet {
   name?: string;
@@ -78,18 +86,18 @@ export class StreetValidationService {
       const streetName = this.extractStreetNameFromAddress(street);
       const normalizedStreet = this.normalizeStreet(streetName);
       
-      console.log(`[Street Validation] Normalized street: "${streetName}" -> "${normalizedStreet}"`);
+      log(`[Street Validation] Normalized street: "${streetName}" -> "${normalizedStreet}"`);
       
       // Try alternative normalizations for better matching
       const alternativeNormalizations = this.generateAlternativeNormalizations(streetName);
-      console.log(`[Street Validation] Generated ${alternativeNormalizations.length} alternative normalizations`);
+      log(`[Street Validation] Generated ${alternativeNormalizations.length} alternative normalizations`);
       
       // Check internal database first
       const internalStreets = await this.getStreetsFromDatabase(postalCode, city);
       
       if (internalStreets.length > 0) {
         // Log the streets we're comparing against
-        console.log(`[Street Validation] Found ${internalStreets.length} streets in database for ${postalCode} ${city}`);
+        log(`[Street Validation] Found ${internalStreets.length} streets in database for ${postalCode} ${city}`);
         
         // Check if the street exists in our database (exact match)
         const matchingStreet = internalStreets.find(
@@ -97,7 +105,7 @@ export class StreetValidationService {
         );
         
         if (matchingStreet) {
-          console.log(`[Street Validation] Exact match found: "${streetName}" matches "${matchingStreet}"`);
+          log(`[Street Validation] Exact match found: "${streetName}" matches "${matchingStreet}"`);
           return {
             isValid: true,
             suggestedStreet: matchingStreet,
@@ -114,7 +122,7 @@ export class StreetValidationService {
           );
           
           if (altMatch) {
-            console.log(`[Street Validation] Alternative normalization match found: "${streetName}" matches "${altMatch}" via "${altNorm}"`);
+            log(`[Street Validation] Alternative normalization match found: "${streetName}" matches "${altMatch}" via "${altNorm}"`);
             return {
               isValid: true,
               suggestedStreet: altMatch,
@@ -130,18 +138,18 @@ export class StreetValidationService {
           const normalizedDbStreet = this.normalizeStreet(dbStreet);
           
           // Log the comparison for debugging
-          console.log(`[Street Validation] Comparing: "${normalizedStreet}" with "${normalizedDbStreet}"`);
+          log(`[Street Validation] Comparing: "${normalizedStreet}" with "${normalizedDbStreet}"`);
           
           // Use our improved matching logic
           if (this.isStreetMatch(normalizedStreet, normalizedDbStreet)) {
-            console.log(`[Street Validation] Fuzzy match found: "${streetName}" similar to "${dbStreet}"`);
+            log(`[Street Validation] Fuzzy match found: "${streetName}" similar to "${dbStreet}"`);
             return true;
           }
           
           // Try alternative normalizations with fuzzy matching
           for (const altNorm of alternativeNormalizations) {
             if (this.isStreetMatch(altNorm, normalizedDbStreet)) {
-              console.log(`[Street Validation] Fuzzy match with alternative normalization: "${altNorm}" similar to "${normalizedDbStreet}"`);
+              log(`[Street Validation] Fuzzy match with alternative normalization: "${altNorm}" similar to "${normalizedDbStreet}"`);
               return true;
             }
           }
@@ -150,7 +158,7 @@ export class StreetValidationService {
         });
         
         if (fuzzyMatches.length > 0) {
-          console.log(`[Street Validation] Using fuzzy match: "${streetName}" -> "${fuzzyMatches[0]}"`);
+          log(`[Street Validation] Using fuzzy match: "${streetName}" -> "${fuzzyMatches[0]}"`);
           return {
             isValid: true,
             suggestedStreet: fuzzyMatches[0],
@@ -162,7 +170,7 @@ export class StreetValidationService {
       }
       
       // Continue with external validation if not found internally
-      console.log(`[Street Validation] Checking external API for street "${streetName}" in ${postalCode} ${city}`);
+      log(`[Street Validation] Checking external API for street "${streetName}" in ${postalCode} ${city}`);
       
       // Try multiple variations of the street name for API queries
       const streetVariations = this.generateStreetVariationsForApi(streetName);
@@ -177,7 +185,7 @@ export class StreetValidationService {
           ? `https://openplzapi.org/at/Streets?name=${encodeURIComponent(variation)}&postalCode=${postalCode}&locality=${encodeURIComponent(city)}`
           : `https://openplzapi.org/de/Streets?name=${encodeURIComponent(variation)}&postalCode=${postalCode}&locality=${encodeURIComponent(city)}`;
         
-        console.log(`[Street Validation] Querying URL with variation "${variation}": ${apiUrl}`);
+        log(`[Street Validation] Querying URL with variation "${variation}": ${apiUrl}`);
         
         try {
           const response = await axios.get(apiUrl);
@@ -185,25 +193,27 @@ export class StreetValidationService {
           if (response.data && response.data.length > 0) {
             apiResults = response.data;
             apiStreets = apiResults.map((item: any) => item.name);
-            console.log(`[Street Validation] API returned streets for variation "${variation}": ${apiStreets.join(', ')}`);
+            log(`[Street Validation] API returned streets for variation "${variation}": ${apiStreets.join(', ')}`);
             
             // Log if this was a base street name without suffix
             const baseStreetName = this.getBaseStreetNameWithoutSuffix(streetName);
             if (baseStreetName && variation === baseStreetName) {
-              console.log(`[Street Validation] Successfully matched using base street name without suffix: "${baseStreetName}" for "${streetName}"`);
+              log(`[Street Validation] Successfully matched using base street name without suffix: "${baseStreetName}" for "${streetName}"`);
             }
             
             break; // Exit the loop if we found results
           }
         } catch (error) {
-          console.error(`[Street Validation] Error querying API with variation "${variation}": ${error}`);
+          if (process.env.NODE_ENV !== 'test') {
+            console.error(`[Street Validation] Error querying API with variation "${variation}": ${error}`);
+          }
           // Continue to the next variation
         }
       }
       
       if (apiStreets.length > 0) {
         // Street found in external API
-        console.log(`[Street Validation] API returned streets: ${apiStreets.join(', ')}`);
+        log(`[Street Validation] API returned streets: ${apiStreets.join(', ')}`);
         
         // Check if any of the returned streets match our normalized street
         const exactMatch = apiStreets.find((apiStreet: string) => 
@@ -218,7 +228,7 @@ export class StreetValidationService {
               this.normalizeStreet(apiStreet) === altNorm
             );
             if (altMatch) {
-              console.log(`[Street Validation] Alternative normalization match in API results: "${streetName}" matches "${altMatch}" via "${altNorm}"`);
+              log(`[Street Validation] Alternative normalization match in API results: "${streetName}" matches "${altMatch}" via "${altNorm}"`);
               break;
             }
           }
@@ -238,13 +248,13 @@ export class StreetValidationService {
         }
         
         if (exactMatch) {
-          console.log(`[Street Validation] Exact match found in API results: "${streetName}" matches "${exactMatch}"`);
+          log(`[Street Validation] Exact match found in API results: "${streetName}" matches "${exactMatch}"`);
         } else if (altMatch) {
-          console.log(`[Street Validation] Alternative match found in API results: "${streetName}" matches "${altMatch}"`);
+          log(`[Street Validation] Alternative match found in API results: "${streetName}" matches "${altMatch}"`);
         } else if (fuzzyMatch) {
-          console.log(`[Street Validation] Fuzzy match found in API results: "${streetName}" similar to "${fuzzyMatch}"`);
+          log(`[Street Validation] Fuzzy match found in API results: "${streetName}" similar to "${fuzzyMatch}"`);
         } else {
-          console.log(`[Street Validation] No match in API results, using first result: "${apiStreets[0]}"`);
+          log(`[Street Validation] No match in API results, using first result: "${apiStreets[0]}"`);
         }
         
         // Save to database for future use
@@ -253,7 +263,7 @@ export class StreetValidationService {
         // For Austrian addresses, be more lenient with validation
         const isAustrian = postalCode.length === 4;
         if (isAustrian && !exactMatch && !altMatch && !fuzzyMatch) {
-          console.log(`[Street Validation] Austrian address - being more lenient with validation`);
+          log(`[Street Validation] Austrian address - being more lenient with validation`);
           return {
             isValid: true,
             suggestedStreet: apiStreets[0],
@@ -274,7 +284,7 @@ export class StreetValidationService {
         // No results from API, but we should be more lenient with validation
         // For hyphenated streets, we'll be more lenient as they might be newer streets not in the database
         if (streetName.includes('-')) {
-          console.log(`[Street Validation] No results for hyphenated street "${streetName}" - being lenient`);
+          log(`[Street Validation] No results for hyphenated street "${streetName}" - being lenient`);
           return {
             isValid: true, // Consider valid for hyphenated streets
             suggestedStreet: streetName,
@@ -286,7 +296,7 @@ export class StreetValidationService {
         
         const isAustrian = postalCode.length === 4;
         if (isAustrian) {
-          console.log(`[Street Validation] No results for Austrian street "${streetName}" - being lenient`);
+          log(`[Street Validation] No results for Austrian street "${streetName}" - being lenient`);
           return {
             isValid: true, // Consider valid for Austrian addresses
             suggestedStreet: streetName,
@@ -296,7 +306,7 @@ export class StreetValidationService {
           };
         }
         
-        console.log(`[Street Validation] No results found for street "${streetName}" in ${postalCode} ${city}`);
+        log(`[Street Validation] No results found for street "${streetName}" in ${postalCode} ${city}`);
         return {
           isValid: false,
           suggestedStreet: streetName,
@@ -306,7 +316,7 @@ export class StreetValidationService {
         };
       }
     } catch (error) {
-      console.error(`[Street Validation] Error validating street "${street}" in ${postalCode} ${city}:`, error);
+      log(`[Street Validation] Error validating street "${street}" in ${postalCode} ${city}:`, error);
       return { 
         isValid: false, 
         suggestedStreet: street,
@@ -596,7 +606,7 @@ export class StreetValidationService {
       .replace(/\s+/g, ' ')
       .trim();
       
-    console.log(`[Street Validation] Deep normalization: "${street}" -> "${normalizedStreet}"`);
+    log(`[Street Validation] Deep normalization: "${street}" -> "${normalizedStreet}"`);
     return normalizedStreet;
   }
   
@@ -680,7 +690,7 @@ export class StreetValidationService {
       
       return results.map((result: { street: string }) => result.street);
     } catch (error) {
-      console.error(`[Street Validation] Error getting streets from database: ${error}`);
+      log(`[Street Validation] Error getting streets from database: ${error}`);
       return [];
     }
   }
@@ -714,7 +724,7 @@ export class StreetValidationService {
         });
       }
     } catch (error) {
-      console.error(`[Street Validation] Error saving streets to database: ${error}`);
+      log(`[Street Validation] Error saving streets to database: ${error}`);
     }
   }
 }

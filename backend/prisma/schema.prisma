@@ -2,7 +2,9 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
+  engineType      = "binary"
 }
 
 datasource db {
@@ -38,6 +40,7 @@ model User {
   letters              Letter[]
   billingInfo          BillingInfo?
   addressBook          AddressBook[]
+  senderProfiles       SenderProfile[]
 }
 
 model BillingInfo {
@@ -78,12 +81,17 @@ model Letter {
   fileSize            Int?
   
   // Recipient information
-  recipientName       String?
+  recipientName       String?      // Full name of the recipient
+  recipientFirstName  String?      // First name of the recipient
+  recipientLastName   String?      // Last name of the recipient
+  recipientAcademicTitle String?   // Academic title of the recipient (Dr., Prof., etc.)
   recipientAddress    String?
   recipientCity       String?
   recipientState      String?
   recipientZip        String?
   recipientCountry    String?
+  recipientEmail      String?      // Email address of the recipient
+  recipientPhone      String?      // Phone number of the recipient
   
   // Letter options
   description         String?
@@ -101,6 +109,7 @@ model Letter {
   // Additional information
   returnReceiptPath   String?
   deleteAfter         DateTime?
+  reference           String?      // Reference identifier for tracking
 }
 
 model StatusHistory {
@@ -157,4 +166,25 @@ model StreetValidation {
   createdAt   DateTime @default(now())
   
   @@unique([street, postalCode, city])
+}
+
+// Model for storing sender profiles for BriefButler submissions
+model SenderProfile {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String   // Company or individual name
+  companyName     String?  // Optional company name if different from name
+  isCompany       Boolean  @default(false)
+  address         String
+  city            String
+  state           String?
+  zip             String
+  country         String
+  email           String?
+  phone           String?
+  isDefault       Boolean  @default(false)
+  deliveryProfile String?  // For the BriefButler API delivery profile
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 } 

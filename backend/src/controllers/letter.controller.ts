@@ -886,37 +886,34 @@ export const sendToBriefButler = async (req: Request, res: Response) => {
       });
     }
     
-    // Prepare data for BriefButler submission
-    const submissionData: SpoolSubmissionData = {
+    // Create spool submission data
+    const spoolData: SpoolSubmissionData = {
       pdfPath: absolutePdfPath,
       recipientName: metadata.name,
       recipientAddress: metadata.street,
       recipientCity: metadata.city,
       recipientZip: metadata.postalCode,
       recipientCountry: metadata.country,
-      
-      // Include sender information from the authenticated user
+      recipientState: metadata.state || undefined,
       senderName: `${(req.user as any)?.firstName || ''} ${(req.user as any)?.lastName || ''}`.trim() || 'Default Sender',
       senderAddress: metadata.senderAddress || 'Default Address',
       senderCity: metadata.senderCity || 'Default City',
       senderZip: metadata.senderZip || '1000',
       senderCountry: metadata.senderCountry || 'Austria',
-      
-      // Optional fields
-      deliveryProfile: 'briefbutler-standard',
+      senderState: metadata.senderState || undefined,
+      reference: `letter-${letter.id}`,
+      isColorPrint: metadata.isColorPrint || false,
+      isDuplexPrint: metadata.isDuplexPrint !== false,
       isExpress: metadata.isExpress || false,
       isRegistered: metadata.isRegistered || false,
-      isColorPrint: metadata.isColorPrint || false,
-      isDuplexPrint: metadata.isDuplexPrint !== undefined ? metadata.isDuplexPrint : true,
-      reference: metadata.reference || '',
-      recipientEmail: metadata.email || '',
+      deliveryProfile: metadata.deliveryProfile || 'briefbutler-test'
     };
     
     // Initialize BriefButler service
     const briefButlerService = new BriefButlerService();
     
     // Submit to BriefButler spool service
-    const result = await briefButlerService.submitSpool(submissionData);
+    const result = await briefButlerService.submitSpool(spoolData);
     
     if (!result.success) {
       // Record the failure in status history

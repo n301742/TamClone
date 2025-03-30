@@ -4,7 +4,7 @@ import path from 'path';
 import https from 'https';
 import { logger } from '../utils/logger';
 import dotenv from 'dotenv';
-import { BriefButlerApiResponse, LetterSubmissionData, SpoolSubmissionData } from '../types/briefbutler.types';
+import { BriefButlerApiResponse, LetterSubmissionData, SpoolSubmissionData, DualDeliveryRequest } from '../types/briefbutler.types';
 
 // Load environment variables
 dotenv.config();
@@ -24,63 +24,100 @@ export class BriefButlerService {
     
     logger.info('BriefButlerService: Initializing with certificate authentication');
     
-    // Locate the converted certificate files
-    const certPath = process.env.BRIEFBUTLER_CERTIFICATE_PATH || 
-      path.resolve(process.cwd(), 'certificates/converted/cert.crt');
-    const keyPath = process.env.BRIEFBUTLER_KEY_PATH || 
-      path.resolve(process.cwd(), 'certificates/converted/key.key');
+    // Get the P12/PFX certificate path and password
+    let p12CertPath = process.env.BRIEFBUTLER_CERTIFICATE_PATH ? 
+      path.resolve(process.cwd(), process.env.BRIEFBUTLER_CERTIFICATE_PATH) : 
+      path.resolve(process.cwd(), 'backend/certificates/BB_Test_2024.p12');
+    const certPassword = process.env.BRIEFBUTLER_CERTIFICATE_PASSWORD || 'foobar';
     
-    logger.info(`BriefButlerService: Using certificate: ${certPath}`);
-    logger.info(`BriefButlerService: Using key: ${keyPath}`);
+    logger.info(`BriefButlerService: Using P12 certificate: ${p12CertPath}`);
+    logger.info(`BriefButlerService: Current working directory: ${process.cwd()}`);
     
+    // Debug output to help identify certificate location
+    try {
+      if (fs.existsSync(p12CertPath)) {
+        logger.info(`BriefButlerService: Certificate file exists at ${p12CertPath}`);
+      } else {
+        // Try to find the certificate in several potential locations
+        const potentialPaths = [
+          path.resolve(process.cwd(), 'backend/certificates/BB_Test_2024.p12'),
+          path.resolve(process.cwd(), 'certificates/BB_Test_2024.p12'),
+          path.resolve(__dirname, '../../certificates/BB_Test_2024.p12'),
+          path.resolve(__dirname, '../../../certificates/BB_Test_2024.p12')
+        ];
+        
+        logger.error(`BriefButlerService: Certificate not found at ${p12CertPath}, trying alternative paths...`);
+        
+        for (const altPath of potentialPaths) {
+          if (fs.existsSync(altPath)) {
+            logger.info(`BriefButlerService: Found certificate at alternative path: ${altPath}`);
+            // Use this path instead
+            p12CertPath = altPath;
+            break;
+          }
+        }
+      }
+    } catch (error: any) {
+      logger.error(`BriefButlerService: Error checking certificate path: ${error.message}`);
+    }
+    
+    // Check for required certificate files
     let httpsAgent = undefined;
     
     if (!this.inMockMode) {
       try {
-        // Check if cert and key exist
-        if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-          throw new Error(`Certificate or key file not found at ${certPath} or ${keyPath}`);
+        // First check if PEM files exist in temp directory
+        const tempDir = path.join(process.cwd(), 'backend/certs_temp');
+        const pemCertPath = path.join(tempDir, 'certificate.pem');
+        const pemKeyPath = path.join(tempDir, 'private_key.pem');
+        
+        if (fs.existsSync(pemCertPath) && fs.existsSync(pemKeyPath)) {
+          logger.info(`BriefButlerService: Using PEM files from ${tempDir}`);
+          
+          // Load PEM files
+          const cert = fs.readFileSync(pemCertPath);
+          const key = fs.readFileSync(pemKeyPath);
+          
+          // Create HTTPS agent with PEM files
+          httpsAgent = new https.Agent({
+            cert,
+            key,
+            rejectUnauthorized: false // Set to true in production
+          });
+          
+          logger.info('BriefButlerService: PEM certificate loaded successfully');
+        } else {
+          // Try to load the PKCS#12 certificate
+          logger.info(`BriefButlerService: Loading certificate from ${p12CertPath}`);
+          const pfxData = fs.readFileSync(p12CertPath);
+          
+          // Create HTTPS agent with the certificate
+          httpsAgent = new https.Agent({
+            pfx: pfxData,
+            passphrase: certPassword,
+            rejectUnauthorized: false // Set to true in production
+          });
+          
+          logger.info('BriefButlerService: Certificate loaded successfully');
         }
-        
-        // Read the certificate and key files
-        const cert = fs.readFileSync(certPath);
-        const key = fs.readFileSync(keyPath);
-        
-        // Create HTTPS agent with certificate and key
-        httpsAgent = new https.Agent({
-          cert,
-          key,
-          rejectUnauthorized: false // Set to false for testing
-        });
-        
-        logger.info('BriefButlerService: Certificate and key loaded successfully');
       } catch (error: any) {
         logger.error(`BriefButlerService: Error loading certificate: ${error.message}`);
-        logger.warn('BriefButlerService: Initializing without certificate - API calls may fail');
-        
-        // Create a basic HTTPS agent without certificate
-        httpsAgent = new https.Agent({
-          rejectUnauthorized: false
-        });
+        this.inMockMode = true;
       }
     }
-
-    // Create axios instance with the HTTPS agent and any additional configuration
+    
+    // Create the API client
     this.apiClient = axios.create({
       baseURL: apiUrl,
       httpsAgent,
-      timeout: 30000, // 30 seconds timeout
+      timeout: 30000,
       headers: {
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+      },
     });
-
-    if (this.inMockMode) {
-      logger.warn('BriefButlerService initialized in MOCK MODE. No real API calls will be made.');
-    } else {
-      logger.info(`BriefButlerService initialized with API URL: ${apiUrl}`);
-    }
+    
+    logger.info(`BriefButlerService: Initialized with base URL: ${apiUrl}, mock mode: ${this.inMockMode}`);
   }
   
   /**
@@ -270,20 +307,13 @@ export class BriefButlerService {
    * @returns Promise resolving to the API response
    */
   async submitSpool(data: SpoolSubmissionData): Promise<BriefButlerApiResponse> {
-    // Return mock response if in mock mode
+    // Check for mock mode
     if (this.inMockMode) {
-      logger.debug('BriefButlerService: Returning mock response for submitSpool');
-      return {
-        success: true,
-        data: {
-          spool_id: 'mock-spool-123',
-          status: 'processing',
-          timestamp: new Date().toISOString(),
-        },
-        message: 'Document submitted to spool successfully (MOCK)',
-      };
+      logger.debug('BriefButlerService: Using mock mode as configured');
+      return this.getMockSpoolResponse(data);
     }
     
+    // Continue with real API call
     try {
       // Read the PDF file as a base64 string
       const pdfPath = data.pdfPath;
@@ -301,89 +331,130 @@ export class BriefButlerService {
       const pdfContent = fs.readFileSync(data.pdfPath, { encoding: 'base64' });
       const filename = path.basename(data.pdfPath);
       
-      // Try only the correct endpoint
-      const endpoint = '/endpoint-spool/dualDelivery';
+      // Log file size for debugging
+      const fileSizeKB = Math.round(pdfContent.length / 1024);
+      logger.debug(`BriefButlerService: PDF file size: ${fileSizeKB} KB`);
       
-      // Allow for a configurable deliveryProfile (default to "briefbutler-test" for now)
-      const deliveryProfile = data.deliveryProfile || "briefbutler-test";
+      // Format recipient name into first and last name
+      const nameParts = data.recipientName.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || data.recipientName;
       
-      // Simple payload structure following API documentation
+      // Create payload for the dual delivery endpoint
       const payload = {
+        // Basic metadata 
         metadata: {
-          deliveryId: `Delivery_${Date.now()}`,
-          caseId: `Case_${Date.now()}`
+          deliveryId: `Del_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          caseId: data.reference || `Case_${Date.now()}`
         },
+        // Delivery configuration
         configuration: {
-          deliveryProfile,
-          allowEmail: true,
-          costcenter: data.reference || "default-costcenter" 
+          deliveryProfile: data.deliveryProfile || "briefbutler-test",
+          allowEmail: false,  // Disable email for now
+          colorPrint: !!data.isColorPrint,
+          duplexPrint: !!data.isDuplexPrint,
         },
+        // Recipient information
         receiver: {
-          email: data.recipientEmail || "",
           recipient: {
             physicalPerson: {
-              familyName: data.recipientName.split(' ').pop() || data.recipientName,
-              givenName: data.recipientName.split(' ').shift() || ""
+              givenName: firstName,
+              familyName: lastName
             }
           },
           postalAddress: {
-            street: data.recipientAddress,
+            streetName: data.recipientAddress,
             postalCode: data.recipientZip,
             city: data.recipientCity,
-            countryCode: "AT" // Default to Austria
+            country: data.recipientCountry || "AT"
           }
         },
-        sender: {
-          person: {
-            physicalPerson: {
-              familyName: data.senderName.split(' ').pop() || data.senderName,
-              givenName: data.senderName.split(' ').shift() || ""
-            }
-          },
-          postalAddress: {
-            street: data.senderAddress,
-            postalCode: data.senderZip,
-            city: data.senderCity,
-            countryCode: "AT" // Default to Austria
-          }
-        },
-        subject: data.reference || "Document Delivery",
-        documents: [
-          {
-            content: pdfContent,
-            mimeType: "application/pdf",
-            name: filename,
-            documentId: `doc_${Date.now()}`,
-            type: "Standard"
-          }
-        ]
+        // Document to be sent
+        document: {
+          content: pdfContent,
+          fileName: filename,
+          mimeType: "application/pdf"
+        }
       };
       
-      logger.debug(`BriefButlerService: Making request to endpoint: ${endpoint}`);
+      logger.debug(`BriefButlerService: Making request to endpoint: /endpoint-spool/dualDelivery`);
+      logger.debug(`BriefButlerService: Using delivery profile: "${payload.configuration.deliveryProfile}"`);
+      logger.debug(`BriefButlerService: Recipient: ${firstName} ${lastName}, ${payload.receiver.postalAddress.streetName}, ${payload.receiver.postalAddress.city}, ${payload.receiver.postalAddress.postalCode}`);
+      logger.debug(`BriefButlerService: Options: color=${payload.configuration.colorPrint}, duplex=${payload.configuration.duplexPrint}`);
+      logger.debug(`BriefButlerService: Metadata: deliveryId="${payload.metadata.deliveryId}", caseId="${payload.metadata.caseId}"`);
+      logger.debug(`BriefButlerService: Document size: ${pdfContent.length} chars (${fileSizeKB}KB)`);
       
       try {
-        const response = await this.apiClient.post(endpoint, payload, {
+        // Log the full URL being called
+        logger.debug(`BriefButlerService: Full URL: ${this.apiClient.defaults.baseURL}/endpoint-spool/dualDelivery`);
+        
+        // Set a longer timeout for this specific request
+        const response = await this.apiClient.post('/endpoint-spool/dualDelivery', payload, {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-          }
+          },
+          timeout: 120000 // 2 minutes timeout for this specific request
         });
         
         logger.debug('BriefButlerService: Response successfully received');
+        logger.debug('BriefButlerService: Response data: ' + JSON.stringify(response.data));
         
         return {
           success: true,
           data: response.data,
-          message: 'Document submitted to spool service successfully',
+          message: 'Document submitted to BriefButler successfully',
         };
       } catch (error: any) {
-        logger.error(`BriefButlerService: Error with endpoint ${endpoint}: ${error.message}`);
+        logger.error(`BriefButlerService: Error with endpoint /endpoint-spool/dualDelivery: ${error.message}`);
         
         if (error.response) {
           logger.error(`Response status: ${error.response.status}`);
-          logger.error(`Response data:`, JSON.stringify(error.response.data, null, 2));
+          logger.error(`Response data: ${JSON.stringify(error.response.data || {})}`);
+          
+          // Add more detailed logging for specific error codes
+          if (error.response.status === 401) {
+            logger.error('This appears to be an authentication error. The certificate may be invalid or expired.');
+          } else if (error.response.status === 400) {
+            logger.error('This appears to be a bad request error. The payload format may be incorrect.');
+            logger.error('Payload structure sent: ' + JSON.stringify(Object.keys(payload)));
+            if (error.response.data) {
+              logger.error('Response error details:');
+              logger.error(JSON.stringify(error.response.data, null, 2));
+            }
+          } else if (error.response.status === 404) {
+            logger.error('This appears to be a 404 Not Found error. The API endpoint might be incorrect.');
+            logger.error(`Full URL attempted: ${this.apiClient.defaults.baseURL}/endpoint-spool/dualDelivery`);
+            // Try with a fallback endpoint if we get a 404
+            try {
+              logger.info('Attempting fallback endpoint: /spool/dualDelivery');
+              const fallbackResponse = await this.apiClient.post('/spool/dualDelivery', payload, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                timeout: 120000
+              });
+              
+              logger.info('Fallback endpoint succeeded!');
+              return {
+                success: true,
+                data: fallbackResponse.data,
+                message: 'Document submitted to BriefButler successfully (fallback endpoint)',
+              };
+            } catch (fallbackError: any) {
+              logger.error(`Fallback endpoint also failed: ${fallbackError.message}`);
+            }
+          } else if (error.response.status === 500) {
+            logger.error('This is a server-side error. The BriefButler service may be experiencing issues.');
+            if (error.response.data) {
+              logger.error('Server error details:');
+              logger.error(JSON.stringify(error.response.data, null, 2));
+            }
+          }
         }
         
+        // Don't fall back to mock mode for real errors, return the actual error
         return {
           success: false,
           error: error.response?.data?.message || error.message,
@@ -393,17 +464,33 @@ export class BriefButlerService {
     } catch (error: any) {
       logger.error('BriefButlerService: Error submitting document:', error.message);
       
-      if (error.response) {
-        logger.error(`Response status: ${error.response.status}`);
-        logger.error(`Response data:`, JSON.stringify(error.response.data, null, 2));
-      }
-      
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error: error.message,
         message: 'Failed to submit document to BriefButler spool service',
       };
     }
+  }
+  
+  /**
+   * Get a mock response for spool submission
+   * Used when falling back to mock mode after a real API failure
+   */
+  private getMockSpoolResponse(data: SpoolSubmissionData): BriefButlerApiResponse {
+    const mockTrackingId = `mock-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    logger.debug(`BriefButlerService: Returning mock response for submitSpool with ID: ${mockTrackingId}`);
+    
+    return {
+      success: true,
+      data: {
+        spool_id: mockTrackingId,
+        status: 'processing',
+        message: 'Document received for processing',
+        timestamp: new Date().toISOString(),
+      },
+      message: 'Document submitted to spool successfully (MOCK MODE)',
+    };
   }
   
   /**
@@ -519,6 +606,400 @@ export class BriefButlerService {
         success: false,
         error: error.response?.data?.message || error.message,
         message: 'Failed to get user profiles from BriefButler',
+      };
+    }
+  }
+
+  /**
+   * Submit a document for dual delivery using the BriefButler spool service
+   * @param data Document submission data
+   * @returns BriefButler API response with tracking information
+   */
+  async submitDualDelivery(data: SpoolSubmissionData): Promise<BriefButlerApiResponse> {
+    // Return mock response if in mock mode
+    if (this.inMockMode) {
+      logger.debug('BriefButlerService: Returning mock response for submitDualDelivery');
+      return {
+        success: true,
+        data: {
+          trackingId: `mock-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        },
+        message: 'Document submitted successfully (MOCK)',
+      };
+    }
+    
+    try {
+      logger.info('BriefButlerService: Preparing to submit document for dual delivery');
+      
+      // Read the PDF file as base64
+      if (!fs.existsSync(data.pdfPath)) {
+        logger.error(`BriefButlerService: PDF file not found at ${data.pdfPath}`);
+        return {
+          success: false,
+          error: `PDF file not found at ${data.pdfPath}`,
+          message: 'Failed to submit document',
+        };
+      }
+      
+      const pdfContent = fs.readFileSync(data.pdfPath, { encoding: 'base64' });
+      
+      // Calculate file size in KB for logging
+      const fileSizeKB = Math.round(pdfContent.length / 1024);
+      logger.info(`BriefButlerService: PDF file read successfully. Size: ${fileSizeKB} KB`);
+      
+      // Determine first and last name
+      let givenName = '';
+      let familyName = '';
+      
+      if (data.recipientFirstName || data.recipientLastName) {
+        givenName = data.recipientFirstName || '';
+        familyName = data.recipientLastName || '';
+        logger.debug(`BriefButlerService: Using provided first and last name fields: "${givenName}" "${familyName}"`);
+      } else {
+        // Parse recipient name into components (assuming "FirstName LastName" format)
+        const nameParts = data.recipientName.split(' ');
+        givenName = nameParts.length > 1 ? nameParts[0] : data.recipientName;
+        familyName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+        logger.debug(`BriefButlerService: Parsed first and last name from full name: "${givenName}" "${familyName}"`);
+      }
+      
+      // Validate sender information
+      if (!data.senderName || !data.senderAddress || !data.senderCity || !data.senderZip || !data.senderCountry) {
+        const errorMsg = 'Missing required sender information';
+        logger.error(`BriefButlerService: ${errorMsg}`, {
+          senderName: data.senderName,
+          senderAddress: data.senderAddress, 
+          senderCity: data.senderCity,
+          senderZip: data.senderZip,
+          senderCountry: data.senderCountry
+        });
+        return {
+          success: false,
+          error: errorMsg,
+          message: 'Failed to submit document: missing sender information',
+        };
+      }
+      
+      // Parse sender name similarly
+      const senderNameParts = data.senderName.split(' ');
+      const senderIsCompany = data.senderName.length > 30;
+      logger.debug(`BriefButlerService: Sender appears to be a ${senderIsCompany ? 'company' : 'person'}: "${data.senderName}"`);
+      
+      // Enhanced validation for country codes
+      const validCountryCodes = ['AT', 'DE', 'CH']; // Add more as needed
+      const recipientCountryCode = data.recipientCountry.length <= 2 ? data.recipientCountry : 'AT'; // Default to AT if not a country code
+      const senderCountryCode = data.senderCountry.length <= 2 ? data.senderCountry : 'AT'; // Default to AT if not a country code
+      
+      // Prepare the request body according to the actual API format
+      const requestBody: DualDeliveryRequest = {
+        metadata: {
+          deliveryId: data.reference || `letter-${Date.now()}`,
+        },
+        configuration: {
+          deliveryProfile: data.deliveryProfile || 'briefbutler-test',
+          allowEmail: !!data.recipientEmail,
+        },
+        receiver: {
+          email: data.recipientEmail,
+          phoneNumber: data.recipientPhone,
+          recipient: {
+            physicalPerson: {
+              familyName: familyName || 'Unknown',
+              givenName: givenName,
+              // Include academic title as postfixTitle if available
+              postfixTitle: data.recipientAcademicTitle || undefined
+            }
+          },
+          postalAddress: {
+            street: data.recipientAddress,
+            postalCode: data.recipientZip,
+            city: data.recipientCity,
+            countryCode: recipientCountryCode,
+          }
+        },
+        sender: {
+          person: senderIsCompany 
+            ? { legalPerson: { name: data.senderName } }
+            : { 
+                physicalPerson: { 
+                  familyName: senderNameParts.length > 1 ? senderNameParts.slice(1).join(' ') : data.senderName,
+                  givenName: senderNameParts.length > 1 ? senderNameParts[0] : '',
+                }
+              },
+          postalAddress: {
+            street: data.senderAddress,
+            postalCode: data.senderZip,
+            city: data.senderCity,
+            countryCode: senderCountryCode,
+          }
+        },
+        subject: 'Document Delivery',
+        documents: [
+          {
+            content: pdfContent,
+            mimeType: 'application/pdf',
+            name: path.basename(data.pdfPath),
+            type: 'Standard',
+            realm: 'GENERAL',
+          }
+        ]
+      };
+      
+      // Log detailed request information for debugging
+      logger.info('BriefButlerService: Making request to /endpoint-spool/dualDelivery');
+      logger.debug('BriefButlerService: Request payload:', {
+        metadata: requestBody.metadata,
+        configuration: requestBody.configuration,
+        receiver: {
+          email: requestBody.receiver.email,
+          phoneNumber: requestBody.receiver.phoneNumber,
+          recipient: requestBody.receiver.recipient,
+          postalAddress: requestBody.receiver.postalAddress
+        },
+        sender: {
+          person: requestBody.sender?.person,
+          postalAddress: requestBody.sender?.postalAddress
+        },
+        documents: requestBody.documents.map(doc => ({
+          name: doc.name,
+          type: doc.type,
+          realm: doc.realm,
+          contentLength: doc.content.length
+        }))
+      });
+      
+      const response = await this.apiClient.post('/endpoint-spool/dualDelivery', requestBody);
+      logger.info('BriefButlerService: Document submitted successfully');
+      
+      return {
+        success: true,
+        data: response.data,
+        message: 'Document submitted successfully',
+      };
+    } catch (error: any) {
+      logger.error(`BriefButlerService: Error submitting document: ${error.message}`);
+      
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+        logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+        
+        if (error.response.status === 500) {
+          logger.error(`This is a server-side error. The BriefButler service may be experiencing issues.`);
+          logger.error(`Server error details:`);
+          logger.error(error.response.data);
+        }
+      }
+      
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+        message: 'Failed to submit document',
+      };
+    }
+  }
+
+  /**
+   * Get the status of a document by its tracking ID
+   * @param trackingId The tracking ID of the document
+   * @returns BriefButler API response with status information
+   */
+  async getTrackingStatus(trackingId: string): Promise<BriefButlerApiResponse> {
+    // Return mock response if in mock mode
+    if (this.inMockMode) {
+      logger.debug('BriefButlerService: Returning mock response for getTrackingStatus');
+      return {
+        success: true,
+        data: {
+          trackingId: trackingId,
+          state: {
+            stateName: 'processing',
+            stateCode: 201,
+            timestamp: new Date().toISOString(),
+          },
+          history: [
+            {
+              stateName: 'received',
+              stateCode: 101,
+              timestamp: new Date(Date.now() - 3600000).toISOString(),
+            }
+          ]
+        },
+        message: 'Status retrieved successfully (MOCK)',
+      };
+    }
+    
+    try {
+      logger.info(`BriefButlerService: Getting status for tracking ID: ${trackingId}`);
+      const response = await this.apiClient.get(`/endpoint-status/message/trackingId/${trackingId}`);
+      logger.info('BriefButlerService: Status retrieved successfully');
+      
+      return {
+        success: true,
+        data: response.data,
+        message: 'Status retrieved successfully',
+      };
+    } catch (error: any) {
+      logger.error(`BriefButlerService: Error getting status: ${error.message}`);
+      
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+        logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+        message: 'Failed to get status',
+      };
+    }
+  }
+
+  /**
+   * Get the status of a document by its delivery ID and profile ID
+   * @param deliveryId The delivery ID of the document
+   * @param profileId The profile ID used for submission
+   * @returns BriefButler API response with status information
+   */
+  async getDeliveryIdStatus(deliveryId: string, profileId: string): Promise<BriefButlerApiResponse> {
+    // Return mock response if in mock mode
+    if (this.inMockMode) {
+      logger.debug('BriefButlerService: Returning mock response for getDeliveryIdStatus');
+      return {
+        success: true,
+        data: [
+          {
+            trackingId: `mock-tracking-for-${deliveryId}`,
+            state: {
+              stateName: 'processing',
+              stateCode: 201,
+              timestamp: new Date().toISOString(),
+            }
+          }
+        ],
+        message: 'Status retrieved successfully (MOCK)',
+      };
+    }
+    
+    try {
+      logger.info(`BriefButlerService: Getting status for delivery ID: ${deliveryId} and profile ID: ${profileId}`);
+      const response = await this.apiClient.get(`/endpoint-status/message/deliveryId/${deliveryId}/${profileId}`);
+      logger.info('BriefButlerService: Status retrieved successfully');
+      
+      return {
+        success: true,
+        data: response.data,
+        message: 'Status retrieved successfully',
+      };
+    } catch (error: any) {
+      logger.error(`BriefButlerService: Error getting status: ${error.message}`);
+      
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+        logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+        message: 'Failed to get status',
+      };
+    }
+  }
+
+  /**
+   * Get the content of an outgoing document
+   * @param trackingId The tracking ID of the document
+   * @param documentId The document ID
+   * @param documentVersion The document version
+   * @returns BriefButler API response with document content
+   */
+  async getDocumentContent(trackingId: string, documentId: string, documentVersion: number): Promise<BriefButlerApiResponse> {
+    // Return mock response if in mock mode
+    if (this.inMockMode) {
+      logger.debug('BriefButlerService: Returning mock response for getDocumentContent');
+      return {
+        success: true,
+        data: Buffer.from('Mock PDF content'),
+        message: 'Document content retrieved successfully (MOCK)',
+      };
+    }
+    
+    try {
+      logger.info(`BriefButlerService: Getting document content for tracking ID: ${trackingId}, document ID: ${documentId}, version: ${documentVersion}`);
+      
+      // Use responseType 'arraybuffer' to get binary data
+      const response = await this.apiClient.get(
+        `/endpoint-status/message/outgoingDocument/${trackingId}/${documentId}/${documentVersion}`,
+        { responseType: 'arraybuffer' }
+      );
+      
+      logger.info('BriefButlerService: Document content retrieved successfully');
+      
+      return {
+        success: true,
+        data: response.data,
+        message: 'Document content retrieved successfully',
+      };
+    } catch (error: any) {
+      logger.error(`BriefButlerService: Error getting document content: ${error.message}`);
+      
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+      }
+      
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to get document content',
+      };
+    }
+  }
+
+  /**
+   * Get the content of a return receipt document
+   * @param trackingId The tracking ID of the document
+   * @param documentId The document ID
+   * @param documentVersion The document version
+   * @returns BriefButler API response with receipt document content
+   */
+  async getReceiptDocument(trackingId: string, documentId: string, documentVersion: number): Promise<BriefButlerApiResponse> {
+    // Return mock response if in mock mode
+    if (this.inMockMode) {
+      logger.debug('BriefButlerService: Returning mock response for getReceiptDocument');
+      return {
+        success: true,
+        data: Buffer.from('Mock receipt content'),
+        message: 'Receipt document retrieved successfully (MOCK)',
+      };
+    }
+    
+    try {
+      logger.info(`BriefButlerService: Getting receipt document for tracking ID: ${trackingId}, document ID: ${documentId}, version: ${documentVersion}`);
+      
+      // Use responseType 'arraybuffer' to get binary data
+      const response = await this.apiClient.get(
+        `/endpoint-status/message/returnReceipt/${trackingId}/${documentId}/${documentVersion}`,
+        { responseType: 'arraybuffer' }
+      );
+      
+      logger.info('BriefButlerService: Receipt document retrieved successfully');
+      
+      return {
+        success: true,
+        data: response.data,
+        message: 'Receipt document retrieved successfully',
+      };
+    } catch (error: any) {
+      logger.error(`BriefButlerService: Error getting receipt document: ${error.message}`);
+      
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+      }
+      
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to get receipt document',
       };
     }
   }

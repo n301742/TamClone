@@ -159,33 +159,56 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
  * Google OAuth callback
  */
 export const googleCallback = (req: Request, res: Response) => {
+  console.log('Google callback received with query params:', req.query);
+  
   // User will be attached by passport middleware
   const user = req.user as User;
 
   if (!user) {
+    console.error('No user found in request after Google authentication');
     return res.status(401).json({
       status: 'error',
       message: 'Authentication failed',
     });
   }
 
+  console.log(`Authenticated user: ${user.email} (ID: ${user.id})`);
+
   // Generate tokens
   const { accessToken, refreshToken } = generateTokens(user);
 
   // Get redirect URI from query params or use default frontend URL
-  const redirectUri = req.query.redirect_uri as string || 
+  let redirectUri = (req.query.redirect_uri as string) || 
     `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback`;
-  
-  // Append token to the redirect URL
-  const redirectUrl = new URL(decodeURIComponent(redirectUri));
-  redirectUrl.searchParams.append('token', accessToken);
-  
-  // Save refresh token in a secure way - in a real production app, 
-  // you might want to set this in a secure, HTTP-only cookie
-  
-  console.log(`Redirecting to: ${redirectUrl.toString()}`);
-  
-  return res.redirect(redirectUrl.toString());
+
+  try {
+    // Make sure we have a valid URL
+    if (!redirectUri.includes('://')) {
+      // If it's just a path, prefix with the frontend URL
+      redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}${
+        redirectUri.startsWith('/') ? '' : '/'
+      }${redirectUri}`;
+    }
+    
+    // Ensure redirectUri can be properly parsed as a URL
+    const redirectUrl = new URL(redirectUri);
+    
+    // Append token to the redirect URL
+    redirectUrl.searchParams.append('token', accessToken);
+    redirectUrl.searchParams.append('refreshToken', refreshToken);
+    
+    console.log(`Redirecting to: ${redirectUrl.toString()}`);
+    
+    return res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error('Error building redirect URL:', error);
+    
+    // Fallback to frontend URL
+    const fallbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${accessToken}&refreshToken=${refreshToken}`;
+    
+    console.log(`Using fallback redirect URL: ${fallbackUrl}`);
+    return res.redirect(fallbackUrl);
+  }
 };
 
 /**

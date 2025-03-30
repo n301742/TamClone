@@ -195,21 +195,15 @@ class PdfService {
       addressExtraction: {
         confidence: 0.85,
         rawText: "John Doe\n123 Main Street\n10115 Berlin\nGermany",
-        zipCodeValidation: {
-          attempted: true,
-          countryDetected: "Germany",
-          zipCodeFormat: "#####",
-          cityProvided: true,
+        zipValidationDetails: {
           matchFound: true,
           originalCity: "Berlin",
-          suggestedCity: null
+          suggestedCity: undefined
         },
-        streetValidation: {
-          attempted: true,
-          streetProvided: true,
+        streetValidationDetails: {
           matchFound: true,
           originalStreet: "Main Street",
-          suggestedStreet: null
+          suggestedStreet: undefined
         },
         name: "John Doe",
         firstName: "John",
@@ -227,9 +221,9 @@ class PdfService {
   /**
    * Send a document to BriefButler service with metadata
    * 
-   * @param documentId - The ID of the document to send
+   * @param documentId - The internal ID of the document in our system (not related to BriefButler)
    * @param metadata - The metadata to send with the document
-   * @returns Promise with the BriefButler response
+   * @returns Promise with the BriefButler response containing their assigned tracking ID
    */
   public async sendToBriefButler(
     documentId: string,
@@ -245,7 +239,7 @@ class PdfService {
       email?: string;         // Optional recipient email
       isExpress?: boolean;    // Optional express delivery
       isRegistered?: boolean; // Optional registered mail
-      reference?: string;     // Optional reference number
+      reference?: string;     // Optional reference number for BriefButler tracking
       senderAddress?: string; // Sender address for backend validation
       senderCity?: string;    // Sender city for backend validation
       senderZip?: string;     // Sender ZIP code for backend validation
@@ -306,6 +300,80 @@ class PdfService {
       throw error;
     }
   }
+
+  /**
+   * Submit a document to BriefButler using a sender profile
+   * @param letterData Data including the letter ID and sender profile ID
+   * @returns API response from BriefButler
+   */
+  public async submitToBriefButler(letterData: {
+    letterId: string;
+    recipientName: string;
+    recipientAddress: string;
+    recipientCity: string;
+    recipientZip: string;
+    recipientCountry: string;
+    recipientEmail?: string;
+    reference?: string;
+    isExpress?: boolean;
+    isRegistered?: boolean;
+    isColorPrint?: boolean;
+    isDuplexPrint?: boolean;
+    senderProfileId: string;
+  }): Promise<any> {
+    // Check if we should use mock data
+    if (this.isDevelopment && this.useMockApi) {
+      console.log('📝 PdfService: Using mock data for BriefButler API (sender profile submission)');
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
+      
+      return {
+        success: true,
+        briefButlerId: `bb-${Math.random().toString(36).substring(2, 10)}`,
+        status: 'SUBMITTED',
+        message: 'Document successfully sent to BriefButler service using sender profile'
+      };
+    }
+    
+    console.log(`📤 PdfService: Submitting document to BriefButler with sender profile:`, letterData);
+    
+    try {
+      // Call the BriefButler API endpoint
+      const response = await apiClient.post<any>(
+        `/api/brief-butler/dual-delivery`,
+        letterData
+      );
+      
+      console.log('📥 PdfService: BriefButler submission response:', response);
+      
+      return response;
+    } catch (error: any) {
+      console.error('❌ PdfService: BriefButler submission failed:', error);
+      
+      // Log more details about the error for debugging
+      if (error.response) {
+        console.error('❌ Response status:', error.response.status);
+        console.error('❌ Response data:', error.response.data);
+        console.error('❌ Response headers:', error.response.headers);
+      } else if (error.request) {
+        console.error('❌ No response received, request details:', error.request);
+      } else {
+        console.error('❌ Error details:', error.message);
+      }
+      
+      // If we're in development mode with mock API enabled, return mock data on failure
+      if (this.isDevelopment && this.useMockApi) {
+        console.log('📝 PdfService: BriefButler submission failed, using mock data instead');
+        return {
+          success: true,
+          briefButlerId: `bb-mock-${Math.random().toString(36).substring(2, 10)}`,
+          status: 'SUBMITTED',
+          message: 'Document successfully sent to BriefButler service (mock)'
+        };
+      }
+      
+      throw error;
+    }
+  }
 }
 
 /**
@@ -314,8 +382,20 @@ class PdfService {
 export interface AddressExtraction {
   confidence: number;
   rawText: string;
-  zipCodeValidation: ZipCodeValidation;
-  streetValidation: StreetValidation;
+  zipValidationDetails?: {
+    matchFound: boolean;
+    originalCity?: string;
+    suggestedCity?: string;
+    allPossibleCities?: string[];
+    mismatch?: boolean;
+  };
+  streetValidationDetails?: {
+    matchFound: boolean;
+    originalStreet?: string;
+    suggestedStreet?: string;
+    allPossibleStreets?: string[];
+    mismatch?: boolean;
+  };
   name?: string;
   firstName?: string;
   lastName?: string;

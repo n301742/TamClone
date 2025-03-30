@@ -3,6 +3,17 @@ import { ref, reactive, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToast } from 'primevue/usetoast';
 import type { User } from '../../services/api';
+import type { SenderProfile } from '../../types/api.types';
+import SenderProfileDropdown from '../../components/SenderProfileDropdown.vue';
+
+// PrimeVue components
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import ProgressSpinner from 'primevue/progressspinner';
+import Card from 'primevue/card';
+import Divider from 'primevue/divider';
+import Tag from 'primevue/tag';
+import Avatar from 'primevue/avatar';
 
 // Services
 const authStore = useAuthStore();
@@ -12,6 +23,10 @@ const toast = useToast();
 const loading = ref(false);
 const editMode = ref(false);
 const user = ref<User | null>(null);
+
+// Sender profile state
+const selectedProfileId = ref('');
+const selectedProfile = ref<SenderProfile | null>(null);
 
 // Form state
 const profileForm = reactive({
@@ -95,14 +110,42 @@ const saveProfile = async () => {
   }
 };
 
+// Handle selected sender profile
+const onProfileSelected = (profile: SenderProfile) => {
+  selectedProfile.value = profile;
+};
+
+// Get country name from country code
+const getCountryName = (code: string): string => {
+  const countries: Record<string, string> = {
+    'AT': 'Austria',
+    'DE': 'Germany',
+    'CH': 'Switzerland'
+  };
+  return countries[code] || code;
+};
+
 // Format date for display
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }).format(date);
+const formatDate = (dateString: string | null | undefined) => {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+    
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }).format(date);
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid date';
+  }
 };
 
 // Initialize component
@@ -112,108 +155,228 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <div class="card mb-4">
-      <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold">My Profile</h1>
-        <Button 
-          :label="editMode ? 'Cancel' : 'Edit Profile'" 
-          :icon="editMode ? 'pi pi-times' : 'pi pi-pencil'" 
-          :severity="editMode ? 'secondary' : 'info'" 
-          @click="toggleEditMode" 
-        />
-      </div>
+  <div class="flex flex-column gap-4">
+    <!-- User Profile Section -->
+    <Card class="shadow-1">
+      <template #header>
+        <div class="flex justify-content-between align-items-center px-3 py-2">
+          <h2 class="text-xl font-bold m-0">My Profile</h2>
+          <Button 
+            :label="editMode ? 'Cancel' : 'Edit Profile'" 
+            :icon="editMode ? 'pi pi-times' : 'pi pi-pencil'" 
+            :severity="editMode ? 'secondary' : 'info'" 
+            @click="toggleEditMode" 
+          />
+        </div>
+      </template>
       
-      <div v-if="loading" class="flex justify-center py-8">
-        <ProgressSpinner />
-      </div>
-      
-      <div v-else-if="user">
-        <!-- View mode -->
-        <div v-if="!editMode" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h2 class="text-lg font-semibold mb-4">User Information</h2>
-            <div class="mb-4">
-              <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Name</div>
-              <div class="font-medium">{{ user.firstName }} {{ user.lastName }}</div>
+      <template #content>
+        <div v-if="loading" class="flex justify-content-center py-5">
+          <ProgressSpinner />
+        </div>
+        
+        <div v-else-if="user">
+          <!-- View mode -->
+          <div v-if="!editMode" class="grid">
+            <div class="col-12 md:col-6">
+              <div class="flex flex-column">
+                <h3 class="text-lg font-semibold mb-3">User Information</h3>
+                
+                <div class="flex flex-column gap-3">
+                  <div>
+                    <div class="font-medium text-500 mb-1">Name</div>
+                    <div class="text-900">{{ user.firstName }} {{ user.lastName }}</div>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
+                    <div class="font-medium text-500 mb-1">Email</div>
+                    <div class="text-900">{{ user.email }}</div>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
+                    <div class="font-medium text-500 mb-1">Account Created</div>
+                    <div class="text-900">{{ formatDate(user.createdAt) }}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="mb-4">
-              <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Email</div>
-              <div class="font-medium">{{ user.email }}</div>
-            </div>
-            <div class="mb-4">
-              <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Account Created</div>
-              <div class="font-medium">{{ formatDate(user.createdAt) }}</div>
+            
+            <div class="col-12 md:col-6">
+              <h3 class="text-lg font-semibold mb-3">Account Statistics</h3>
+              <div class="grid">
+                <div class="col-6 mb-3">
+                  <Card class="h-full">
+                    <template #content>
+                      <div class="font-medium text-500 mb-1">Total Letters</div>
+                      <div class="text-2xl font-bold text-900">0</div>
+                    </template>
+                  </Card>
+                </div>
+                
+                <div class="col-6 mb-3">
+                  <Card class="h-full">
+                    <template #content>
+                      <div class="font-medium text-500 mb-1">Addresses</div>
+                      <div class="text-2xl font-bold text-900">0</div>
+                    </template>
+                  </Card>
+                </div>
+                
+                <div class="col-6">
+                  <Card class="h-full">
+                    <template #content>
+                      <div class="font-medium text-500 mb-1">Letters Sent</div>
+                      <div class="text-2xl font-bold text-900">0</div>
+                    </template>
+                  </Card>
+                </div>
+                
+                <div class="col-6">
+                  <Card class="h-full">
+                    <template #content>
+                      <div class="font-medium text-500 mb-1">Letters Delivered</div>
+                      <div class="text-2xl font-bold text-900">0</div>
+                    </template>
+                  </Card>
+                </div>
+              </div>
             </div>
           </div>
           
-          <div>
-            <h2 class="text-lg font-semibold mb-4">Account Statistics</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Letters</div>
-                <div class="text-xl font-bold">{{ 0 }}</div>
+          <!-- Edit mode -->
+          <div v-else>
+            <form @submit.prevent="saveProfile" class="p-fluid">
+              <div class="grid formgrid">
+                <div class="field col-12 md:col-6">
+                  <label for="firstName" class="font-medium mb-2 block">First Name</label>
+                  <InputText id="firstName" v-model="profileForm.firstName" />
+                </div>
+                <div class="field col-12 md:col-6">
+                  <label for="lastName" class="font-medium mb-2 block">Last Name</label>
+                  <InputText id="lastName" v-model="profileForm.lastName" />
+                </div>
               </div>
-              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Addresses</div>
-                <div class="text-xl font-bold">{{ 0 }}</div>
+              
+              <div class="field">
+                <label for="email" class="font-medium mb-2 block">Email</label>
+                <InputText id="email" v-model="profileForm.email" type="email" disabled />
+                <small class="text-500">Email cannot be changed</small>
               </div>
-              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Letters Sent</div>
-                <div class="text-xl font-bold">{{ 0 }}</div>
+              
+              <div class="flex gap-2 mt-4">
+                <Button label="Save Changes" icon="pi pi-check" type="submit" :loading="loading" />
+                <Button label="Cancel" icon="pi pi-times" severity="secondary" text @click="toggleEditMode" />
               </div>
-              <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div class="text-gray-600 dark:text-gray-400 text-sm mb-1">Letters Delivered</div>
-                <div class="text-xl font-bold">{{ 0 }}</div>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
         
-        <!-- Edit mode -->
-        <div v-else>
-          <form @submit.prevent="saveProfile" class="space-y-4 max-w-lg">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="field">
-                <label for="firstName" class="block font-medium mb-2">First Name</label>
-                <InputText id="firstName" v-model="profileForm.firstName" class="w-full" />
-              </div>
-              <div class="field">
-                <label for="lastName" class="block font-medium mb-2">Last Name</label>
-                <InputText id="lastName" v-model="profileForm.lastName" class="w-full" />
-              </div>
-            </div>
-            
-            <div class="field">
-              <label for="email" class="block font-medium mb-2">Email</label>
-              <InputText id="email" v-model="profileForm.email" type="email" class="w-full" disabled />
-              <small class="text-gray-500">Email cannot be changed</small>
-            </div>
-            
-            <div class="flex gap-2 mt-6">
-              <Button label="Save Changes" icon="pi pi-check" type="submit" :loading="loading" />
-              <Button label="Cancel" icon="pi pi-times" severity="secondary" text @click="toggleEditMode" />
-            </div>
-          </form>
+        <div v-else class="p-4 text-center">
+          <Avatar icon="pi pi-user" size="large" class="mb-3" />
+          <div class="text-xl text-700">User profile not available</div>
         </div>
-      </div>
+      </template>
+    </Card>
+
+    <!-- Sender Profiles Section -->
+    <Card class="shadow-1">
+      <template #header>
+        <div class="px-3 py-2">
+          <h2 class="text-xl font-bold m-0">Sender Profiles</h2>
+        </div>
+      </template>
       
-      <div v-else class="p-6 text-center">
-        <div class="text-xl text-gray-600 dark:text-gray-400">User profile not available</div>
-      </div>
-    </div>
+      <template #content>
+        <p class="mb-4 text-700">
+          Sender profiles are used when sending documents through the BriefButler service. 
+          Create and manage your sender information here.
+        </p>
+        
+        <div class="mb-4">
+          <SenderProfileDropdown 
+            v-model="selectedProfileId" 
+            @profile-selected="onProfileSelected" 
+            label="Select or create a sender profile"
+          />
+        </div>
+        
+        <!-- Selected profile details -->
+        <Card v-if="selectedProfile" class="mt-4">
+          <template #header>
+            <div class="flex align-items-center px-3 py-2">
+              <span class="font-bold">{{ selectedProfile.name }}</span>
+              <Tag v-if="selectedProfile.isDefault" value="Default Profile" severity="info" class="ml-2" />
+            </div>
+          </template>
+          
+          <template #content>
+            <div class="grid">
+              <div class="col-12 md:col-6">
+                <div class="flex flex-column gap-3">
+                  <div>
+                    <div class="font-medium text-500 mb-1">Address</div>
+                    <div class="text-900">{{ selectedProfile.address }}</div>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
+                    <div class="font-medium text-500 mb-1">City/ZIP</div>
+                    <div class="text-900">{{ selectedProfile.city }}, {{ selectedProfile.zip }}</div>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
+                    <div class="font-medium text-500 mb-1">Country</div>
+                    <div class="text-900">{{ getCountryName(selectedProfile.country) }}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 md:col-6">
+                <div class="flex flex-column gap-3">
+                  <div v-if="selectedProfile.email">
+                    <div class="font-medium text-500 mb-1">Email</div>
+                    <div class="text-900">{{ selectedProfile.email }}</div>
+                    <Divider />
+                  </div>
+                  
+                  <div v-if="selectedProfile.phone">
+                    <div class="font-medium text-500 mb-1">Phone</div>
+                    <div class="text-900">{{ selectedProfile.phone }}</div>
+                    <Divider />
+                  </div>
+                  
+                  <div v-if="selectedProfile.companyName">
+                    <div class="font-medium text-500 mb-1">Company</div>
+                    <div class="text-900">{{ selectedProfile.companyName }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </Card>
+        
+        <Card v-else-if="!loading" class="mt-4">
+          <template #content>
+            <div class="text-center p-5">
+              <Avatar icon="pi pi-id-card" size="large" class="mb-3" />
+              <div class="text-700">
+                No sender profile selected. Please select or create a profile using the dropdown above.
+              </div>
+            </div>
+          </template>
+        </Card>
+      </template>
+    </Card>
   </div>
 </template>
 
 <style scoped>
-.card {
-  background-color: white;
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-:deep(.dark) .card {
-  background-color: #111827;
-}
+/* No custom styling needed as we're using PrimeVue and Tailwind classes */
 </style> 

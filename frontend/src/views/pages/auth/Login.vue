@@ -21,6 +21,7 @@ const loginForm = reactive({
 const isSubmitting = ref(false);
 const formSubmitted = ref(false);
 const rememberMe = ref(false);
+const isGoogleLoading = ref(false);
 
 /**
  * Handle login form submission
@@ -71,24 +72,37 @@ const handleLogin = async () => {
  * Redirects to the backend's Google OAuth endpoint
  */
 const handleGoogleLogin = () => {
-  // Get the backend URL from environment variables
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  
-  // Current location to handle redirect back after authentication
-  const redirectUrl = encodeURIComponent(
-    window.location.origin + '/auth/callback' + 
-    (router.currentRoute.value.query.redirect 
-      ? `?redirect=${encodeURIComponent(router.currentRoute.value.query.redirect as string)}`
-      : '')
-  );
-  
-  // Create the Google auth URL with redirect parameter
-  const googleAuthUrl = `${apiBaseUrl}/api/auth/google?redirect_uri=${redirectUrl}`;
-  
-  console.log('Redirecting to Google authentication:', googleAuthUrl);
-  
-  // Redirect to Google login
-  window.location.href = googleAuthUrl;
+  try {
+    isGoogleLoading.value = true;
+    
+    // Get the backend URL from environment variables
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    
+    // Current location to handle redirect back after authentication
+    const redirectUrl = encodeURIComponent(
+      window.location.origin + '/auth/callback' + 
+      (router.currentRoute.value.query.redirect 
+        ? `?redirect=${encodeURIComponent(router.currentRoute.value.query.redirect as string)}`
+        : '')
+    );
+    
+    // Create the Google auth URL with redirect parameter
+    const googleAuthUrl = `${apiBaseUrl}/api/auth/google?redirect_uri=${redirectUrl}`;
+    
+    console.log('Redirecting to Google authentication:', googleAuthUrl);
+    
+    // Redirect to Google login
+    window.location.href = googleAuthUrl;
+  } catch (error: any) {
+    isGoogleLoading.value = false;
+    console.error('Google login error:', error);
+    toast.add({ 
+      severity: 'error', 
+      summary: 'Google Login Failed', 
+      detail: 'Could not connect to Google authentication service. Please try again later.', 
+      life: 5000 
+    });
+  }
 };
 </script>
 
@@ -165,6 +179,8 @@ const handleGoogleLogin = () => {
             type="button" 
             class="w-full p-button-outlined" 
             @click="handleGoogleLogin"
+            :loading="isGoogleLoading"
+            :disabled="isGoogleLoading"
           >
             <span class="flex items-center justify-center gap-2">
               <i class="pi pi-google text-lg" style="color: #4285F4;"></i>
@@ -213,5 +229,11 @@ const handleGoogleLogin = () => {
 
 :global(.app-dark) :deep(.p-divider-content) {
   background-color: var(--surface-900);
+}
+
+/* Google button hover style */
+:deep(.p-button-outlined:hover) {
+  background-color: rgba(66, 133, 244, 0.04) !important;
+  border-color: #4285F4 !important;
 }
 </style>
